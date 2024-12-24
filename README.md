@@ -49,12 +49,12 @@ LiveKit for Android is available as a Maven package.
 dependencies {
   def livekit_version = "2.11.0"
 
-  implementation "io.livekit:livekit-android:$livekit_version"
+  implementation "org.difft.android.libraries:livekit-android:$livekit_version"
   // CameraX support with pinch to zoom, torch control, etc.
-  implementation "io.livekit:livekit-android-camerax:$livekit_version"
+  implementation "org.difft.android.libraries:livekit-android-camerax:$livekit_version"
 
   // Snapshots of the latest development version are available at:
-  // implementation "io.livekit:livekit-android:2.11.1-SNAPSHOT"
+  // implementation "org.difft.android.libraries:livekit-android:2.11.1-SNAPSHOT"
 }
 ```
 
@@ -68,10 +68,10 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         //...
-        maven { url 'https://jitpack.io' }
+        maven { url 'https://raw.githubusercontent.com/difftim/AndroidRepo/main/' }
 
         // For SNAPSHOT access
-        // maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+        // maven { url 'https://raw.githubusercontent.com/difftim/AndroidRepo/snapshots/' }
     }
 }
 ```
@@ -258,7 +258,7 @@ To develop the Android SDK or running the sample app directly from this repo, yo
 - Ensure the protocol submodule repo is initialized and updated
 
 ```
-git clone https://github.com/livekit/client-sdk-android.git
+git clone https://github.com/difftim/client-sdk-android.git
 cd client-sdk-android
 git submodule update --init
 ```

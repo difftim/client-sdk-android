@@ -21,7 +21,7 @@ import livekit.org.webrtc.FrameCryptorFactory
 import livekit.org.webrtc.FrameCryptorKeyProvider
 
 class KeyInfo
-constructor(var participantId: String, var keyIndex: Int, var key: String) {
+constructor(var participantId: String, var keyIndex: Int, var key: ByteArray) {
     override fun toString(): String {
         return "KeyInfo(participantId='$participantId', keyIndex=$keyIndex)"
     }
@@ -29,9 +29,11 @@ constructor(var participantId: String, var keyIndex: Int, var key: String) {
 
 public interface KeyProvider {
     fun setSharedKey(key: String, keyIndex: Int? = 0): Boolean
+    fun setSharedKey(key: ByteArray, keyIndex: Int? = 0): Boolean
     fun ratchetSharedKey(keyIndex: Int? = 0): ByteArray
     fun exportSharedKey(keyIndex: Int? = 0): ByteArray
     fun setKey(key: String, participantId: String?, keyIndex: Int? = 0)
+    fun setKey(key: ByteArray, participantId: String?, keyIndex: Int? = 0)
     fun ratchetKey(participantId: String, keyIndex: Int? = 0): ByteArray
     fun exportKey(participantId: String, keyIndex: Int? = 0): ByteArray
     fun setSifTrailer(trailer: ByteArray)
@@ -51,9 +53,13 @@ constructor(
     private var keyRingSize: Int = defaultKeyRingSize,
     private var discardFrameWhenCryptorNotReady: Boolean = defaultDiscardFrameWhenCryptorNotReady,
 ) : KeyProvider {
-    private var keys: MutableMap<String, MutableMap<Int, String>> = mutableMapOf()
+    private var keys: MutableMap<String, MutableMap<Int, ByteArray>> = mutableMapOf()
     override fun setSharedKey(key: String, keyIndex: Int?): Boolean {
         return rtcKeyProvider.setSharedKey(keyIndex ?: 0, key.toByteArray())
+    }
+
+    override fun setSharedKey(key: ByteArray, keyIndex: Int?): Boolean {
+        return rtcKeyProvider.setSharedKey(keyIndex ?: 0, key)
     }
 
     override fun ratchetSharedKey(keyIndex: Int?): ByteArray {
@@ -71,6 +77,20 @@ constructor(
      * @param keyIndex
      */
     override fun setKey(key: String, participantId: String?, keyIndex: Int?) {
+        setKeyInternal(key.toByteArray(), participantId, keyIndex)
+    }
+
+    /**
+     * Set a key for a participant
+     * @param key
+     * @param participantId
+     * @param keyIndex
+     */
+    override fun setKey(key: ByteArray, participantId: String?, keyIndex: Int?) {
+        setKeyInternal(key, participantId, keyIndex)
+    }
+
+    private fun setKeyInternal(key: ByteArray, participantId: String?, keyIndex: Int?) {
         if (enableSharedKey) {
             return
         }
@@ -80,13 +100,13 @@ constructor(
             return
         }
 
-        var keyInfo = KeyInfo(participantId, keyIndex ?: 0, key)
+        val keyInfo = KeyInfo(participantId, keyIndex ?: 0, key)
 
         if (!keys.containsKey(keyInfo.participantId)) {
             keys[keyInfo.participantId] = mutableMapOf()
         }
         keys[keyInfo.participantId]!![keyInfo.keyIndex] = keyInfo.key
-        rtcKeyProvider.setKey(participantId, keyInfo.keyIndex, key.toByteArray())
+        rtcKeyProvider.setKey(participantId, keyInfo.keyIndex, key)
     }
 
     override fun ratchetKey(participantId: String, keyIndex: Int?): ByteArray {

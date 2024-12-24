@@ -13,6 +13,10 @@ android {
     namespace 'io.livekit.android'
     compileSdkVersion androidSdk.compileVersion
 
+    lintOptions {
+        disable 'KotlinNullnessAnnotation'
+    }
+
     defaultConfig {
         minSdkVersion androidSdk.minVersion
         targetSdkVersion androidSdk.targetVersion
