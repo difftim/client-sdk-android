@@ -47,14 +47,12 @@ LiveKit for Android is available as a Maven package.
 ```groovy title="build.gradle"
 ...
 dependencies {
-  def livekit_version = "2.11.0"
-
-  implementation "org.difft.android.libraries:livekit-android:$livekit_version"
+  implementation "org.difft.android.libraries:livekit-android:2.11.0"
   // CameraX support with pinch to zoom, torch control, etc.
-  implementation "org.difft.android.libraries:livekit-android-camerax:$livekit_version"
+  implementation "org.difft.android.libraries:livekit-android-camerax:2.11.0.1"
 
   // Snapshots of the latest development version are available at:
-  // implementation "org.difft.android.libraries:livekit-android:2.11.1-SNAPSHOT"
+  // implementation "org.difft.android.libraries:livekit-android:2.11.0-SNAPSHOT"
 }
 ```
 

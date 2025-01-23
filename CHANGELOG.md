@@ -1,5 +1,10 @@
 # client-sdk-android
 
+## 2.11.0.1
+
+### BUG Fix
+- Fix 720p video compression issue on Huawei devices
+
 ## 2.11.0
 
 ### Minor Changes

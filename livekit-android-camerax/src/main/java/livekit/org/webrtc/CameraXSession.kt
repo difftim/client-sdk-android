@@ -36,12 +36,15 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.Preview.SurfaceProvider
 import androidx.camera.core.UseCase
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import livekit.org.webrtc.CameraEnumerationAndroid.CaptureFormat
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
+
 
 /**
  * @suppress
@@ -196,7 +199,10 @@ internal constructor(
     }
 
     private fun setImageAnalysis() = ImageAnalysis.Builder()
-        .setTargetResolution(Size(captureFormat?.width ?: width, captureFormat?.height ?: height))
+        .setResolutionSelector(
+            ResolutionSelector.Builder()
+                .setResolutionStrategy(ResolutionStrategy(Size(captureFormat?.width ?: width, captureFormat?.height ?: height), ResolutionStrategy.FALLBACK_RULE_NONE)).build(),
+        )
         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).apply {
             val cameraExtender = Camera2Interop.Extender(this)
             captureFormat?.let { captureFormat ->
