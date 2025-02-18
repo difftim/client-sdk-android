@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 LiveKit, Inc.
+ * Copyright 2023-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * An [AudioHandler] built on top of [AudioSwitch].
+ * An [AudioHandler] built on top of [AudioSwitch]. This handles things such as
+ * getting the audio focus as needed, as well as automatic audio output device management.
  *
  * The various settings should be set before connecting to a [Room] and [start] is called.
  */
@@ -61,8 +62,8 @@ constructor(private val context: Context) : AudioHandler {
      * By default, the preferred order is set to:
      * 1. BluetoothHeadset
      * 2. WiredHeadset
-     * 3. Earpiece
-     * 4. Speakerphone
+     * 3. Speakerphone
+     * 4. Earpiece
      */
     var preferredDeviceList: List<Class<out AudioDevice>>? = null
 
@@ -222,8 +223,8 @@ constructor(private val context: Context) : AudioHandler {
             listOf(
                 AudioDevice.BluetoothHeadset::class.java,
                 AudioDevice.WiredHeadset::class.java,
-                AudioDevice.Earpiece::class.java,
                 AudioDevice.Speakerphone::class.java,
+                AudioDevice.Earpiece::class.java,
             )
         }
     }

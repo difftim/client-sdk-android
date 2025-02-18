@@ -1,5 +1,33 @@
 # client-sdk-android
 
+## 2.12.1
+
+### Patch Changes
+
+- Fix documented default of preferredDeviceList in AudioSwitchHandler - [#584](https://github.com/livekit/client-sdk-android/pull/584) ([@davidliu](https://github.com/davidliu))
+
+- Allow access to participant field in ParticipantAttributesChanged event - [#591](https://github.com/livekit/client-sdk-android/pull/591) ([@binkos](https://github.com/binkos))
+
+## 2.12.0
+
+### Minor Changes
+
+- Default prioritizing speaker over earpiece - [#579](https://github.com/livekit/client-sdk-android/pull/579) ([@davidliu](https://github.com/davidliu))
+
+- Implement RPC - [#578](https://github.com/livekit/client-sdk-android/pull/578) ([@davidliu](https://github.com/davidliu))
+
+- Explicitly expose AudioSwitchHandler from Room for easier audio handling - [#579](https://github.com/livekit/client-sdk-android/pull/579) ([@davidliu](https://github.com/davidliu))
+
+### Patch Changes
+
+- Add publishDTMF method for Sending DTMF signals to SIP Participant - [#576](https://github.com/livekit/client-sdk-android/pull/576) ([@dipak140](https://github.com/dipak140))
+
+## 2.11.1
+
+### Patch Changes
+
+- Fix maxFps not applying for very low framerates - [#573](https://github.com/livekit/client-sdk-android/pull/573) ([@davidliu](https://github.com/davidliu))
+
 ## 2.11.0.1
 
 ### BUG Fix
