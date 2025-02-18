@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 LiveKit, Inc.
+ * Copyright 2023-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.livekit.android.room.track.RemoteVideoTrack
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.util.LKLog
+import livekit.LivekitModels.Encryption
 import livekit.org.webrtc.FrameCryptor
 import livekit.org.webrtc.FrameCryptor.FrameCryptionState
 import livekit.org.webrtc.FrameCryptorAlgorithm
@@ -89,6 +90,11 @@ constructor(
     }
 
     public fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
+        if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
+            LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
+            return
+        }
+
         var rtpReceiver: RtpReceiver? = when (publication.track!!) {
             is RemoteAudioTrack -> (publication.track!! as RemoteAudioTrack).receiver
             is RemoteVideoTrack -> (publication.track!! as RemoteVideoTrack).receiver
@@ -123,6 +129,11 @@ constructor(
     }
 
     public fun addPublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
+        if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
+            LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
+            return
+        }
+
         var rtpSender: RtpSender? = when (publication.track!!) {
             is LocalAudioTrack -> (publication.track!! as LocalAudioTrack)?.sender
             is LocalVideoTrack -> (publication.track!! as LocalVideoTrack)?.sender

@@ -195,5 +195,10 @@ afterEvaluate {
                 version = VERSION_NAME
             }
         }
+        repositories {
+            maven {
+                url = uri("~/workspace/project/AndroidRepo")
+            }
+        }
     }
 }
