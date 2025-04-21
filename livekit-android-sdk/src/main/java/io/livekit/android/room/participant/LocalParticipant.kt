@@ -268,8 +268,8 @@ internal constructor(
      * @see Room.audioTrackPublishDefaults
      */
     @Throws(TrackException.PublishException::class)
-    suspend fun setMicrophoneEnabled(enabled: Boolean) {
-        setTrackEnabled(Track.Source.MICROPHONE, enabled)
+    suspend fun setMicrophoneEnabled(enabled: Boolean, publishMuted: Boolean = false) {
+        setTrackEnabled(Track.Source.MICROPHONE, enabled, publishMuted = publishMuted)
     }
 
     /**
@@ -300,6 +300,7 @@ internal constructor(
         source: Track.Source,
         enabled: Boolean,
         mediaProjectionPermissionResultData: Intent? = null,
+        publishMuted: Boolean = false,
     ) {
         val pubLock = sourcePubLocks[source]!!
         pubLock.withLock {
@@ -321,7 +322,7 @@ internal constructor(
                         Track.Source.MICROPHONE -> {
                             val track = createAudioTrack()
                             track.prewarm()
-                            publishAudioTrack(track)
+                            publishAudioTrack(track, publishMuted = publishMuted)
                         }
 
                         Track.Source.SCREEN_SHARE -> {
@@ -372,6 +373,7 @@ internal constructor(
             audioTrackPublishDefaults,
         ),
         publishListener: PublishListener? = null,
+        publishMuted: Boolean = false,
     ) {
         val encodings = listOf(
             RtpParameters.Encoding(null, true, null).apply {
@@ -380,6 +382,12 @@ internal constructor(
                 }
             },
         )
+
+        if (publishMuted) {
+            track.stopPrewarm()
+            track.enabled = false
+        }
+
         val publication = publishTrackImpl(
             track = track,
             options = options,
@@ -387,6 +395,7 @@ internal constructor(
                 disableDtx = !options.dtx
                 disableRed = !options.red
                 source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
+                muted = !track.enabled
             },
             encodings = encodings,
             publishListener = publishListener,
