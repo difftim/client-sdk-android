@@ -41,61 +41,94 @@ Original repo can be found at: https://github.com/ajalt/LKLogkt
  */
 @Suppress("NOTHING_TO_INLINE", "unused")
 class LKLog {
+    interface LogCallback {
+        fun onLog(level: LoggingLevel, message: String?, throwable: Throwable?)
+    }
 
     companion object {
         var loggingLevel = OFF
+        var logCallback: LogCallback? = null
+
+        @JvmStatic
+        fun registerLogCallback(callback: LogCallback) {
+            logCallback = callback
+        }
+
+        @JvmStatic
+        fun unregisterLogCallback() {
+            logCallback = null
+        }
 
         /** Log a verbose exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun v(t: Throwable? = null, message: () -> String) =
-            log(VERBOSE) { Timber.v(t, message()) }
+            log(VERBOSE, t) { message() }
 
         @JvmStatic
-        inline fun v(t: Throwable?) = log(VERBOSE) { Timber.v(t) }
+        inline fun v(t: Throwable?) = log(VERBOSE, t)
 
         /** Log a debug exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun d(t: Throwable? = null, message: () -> String) =
-            log(DEBUG) { Timber.d(t, message()) }
+            log(DEBUG, t) { message() }
 
         @JvmStatic
-        inline fun d(t: Throwable?) = log(DEBUG) { Timber.d(t) }
+        inline fun d(t: Throwable?) = log(DEBUG, t)
 
         /** Log an info exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun i(t: Throwable? = null, message: () -> String) =
-            log(INFO) { Timber.i(t, message()) }
+            log(INFO, t) { message() }
 
         @JvmStatic
-        inline fun i(t: Throwable?) = log(INFO) { Timber.i(t) }
+        inline fun i(t: Throwable?) = log(INFO, t)
 
         /** Log a warning exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun w(t: Throwable? = null, message: () -> String) =
-            log(WARN) { Timber.w(t, message()) }
+            log(WARN) { message() }
 
         @JvmStatic
-        inline fun w(t: Throwable?) = log(WARN) { Timber.w(t) }
+        inline fun w(t: Throwable?) = log(WARN, t)
 
         /** Log an error exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun e(t: Throwable? = null, message: () -> String) =
-            log(ERROR) { Timber.e(t, message()) }
+            log(ERROR, t) { message() }
 
         @JvmStatic
-        inline fun e(t: Throwable?) = log(ERROR) { Timber.e(t) }
+        inline fun e(t: Throwable?) = log(ERROR, t)
 
         /** Log an assert exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun wtf(t: Throwable? = null, message: () -> String) =
-            log(WTF) { Timber.wtf(t, message()) }
+            log(WTF, t) { message() }
 
         @JvmStatic
-        inline fun wtf(t: Throwable?) = log(WTF) { Timber.wtf(t) }
+        inline fun wtf(t: Throwable?) = log(WTF, t)
 
         /** @suppress */
-        inline fun log(loggingLevel: LoggingLevel, block: () -> Unit) {
-            if (loggingLevel >= LKLog.loggingLevel && Timber.treeCount() > 0) block()
+        inline fun log(loggingLevel: LoggingLevel, throwable: Throwable? = null, block: () -> String) {
+            if (loggingLevel >= LKLog.loggingLevel) {
+                val message = block()
+
+                logCallback?.onLog(loggingLevel, message, throwable)
+
+                if (logCallback == null && Timber.treeCount() > 0) {
+                    Timber.log(loggingLevel.toAndroidLogPriority(), throwable, message)
+                }
+            }
+        }
+
+        /** @suppress */
+        inline fun log(loggingLevel: LoggingLevel, throwable: Throwable?) {
+            if (loggingLevel >= LKLog.loggingLevel) {
+                logCallback?.onLog(loggingLevel, null, throwable)
+
+                if (logCallback == null && Timber.treeCount() > 0) {
+                    Timber.log(loggingLevel.toAndroidLogPriority(), throwable, null)
+                }
+            }
         }
     }
 }

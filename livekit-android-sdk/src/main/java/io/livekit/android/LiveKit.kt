@@ -42,17 +42,32 @@ object LiveKit {
         get() = LKLog.loggingLevel
         set(value) {
             LKLog.loggingLevel = value
+        }
 
+    private var _debugTree: Timber.DebugTree? = null
+    fun setLogToDebug(enabled: Boolean) {
+        if (enabled) {
             // Plant debug tree if needed.
-            if (value != LoggingLevel.OFF) {
+            if (loggingLevel != LoggingLevel.OFF) {
                 val forest = Timber.forest()
                 val needsPlanting = forest.none { it is Timber.DebugTree }
 
                 if (needsPlanting) {
-                    Timber.plant(Timber.DebugTree())
+                    if (_debugTree == null) {
+                        _debugTree = Timber.DebugTree()
+                    }
+                    Timber.plant(_debugTree)
                 }
             }
+        } else {
+            if (_debugTree == null) {
+                return
+            }
+
+            Timber.uproot(_debugTree!!)
+            _debugTree = null
         }
+    }
 
     /**
      * Enables logs for the underlying WebRTC sdk logging. Used in conjunction with [loggingLevel].
@@ -61,6 +76,9 @@ object LiveKit {
      */
     @JvmStatic
     var enableWebRTCLogging: Boolean = false
+
+    @JvmStatic
+    var loggingLevelWebRTC: LoggingLevel = LoggingLevel.VERBOSE
 
     /**
      * Certain WebRTC classes need to be initialized prior to use.

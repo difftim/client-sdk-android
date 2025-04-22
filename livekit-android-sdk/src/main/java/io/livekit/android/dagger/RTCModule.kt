@@ -118,10 +118,16 @@ internal object RTCModule {
                                     }
 
                                     LKLog.log(loggingLevel) {
-                                        Timber.log(loggingLevel.toAndroidLogPriority(), "$s2: $s")
+                                        "$s2: $s"
                                     }
                                 },
-                                Logging.Severity.LS_VERBOSE,
+                                when (LiveKit.loggingLevelWebRTC) {
+                                    LoggingLevel.VERBOSE -> Logging.Severity.LS_VERBOSE
+                                    LoggingLevel.INFO -> Logging.Severity.LS_INFO
+                                    LoggingLevel.WARN -> Logging.Severity.LS_WARNING
+                                    LoggingLevel.ERROR -> Logging.Severity.LS_ERROR
+                                    else -> Logging.Severity.LS_NONE
+                                },
                             )
                             .createInitializationOptions(),
                     )
