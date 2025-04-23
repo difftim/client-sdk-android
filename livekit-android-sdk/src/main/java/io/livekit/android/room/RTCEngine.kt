@@ -716,9 +716,9 @@ internal constructor(
                 servers.add(serverInfo.toWebrtc())
             }
 
-            if (servers.isEmpty()) {
-                servers.addAll(SignalClient.DEFAULT_ICE_SERVERS)
-            }
+//            if (servers.isEmpty()) {
+//                servers.addAll(SignalClient.DEFAULT_ICE_SERVERS)
+//            }
             servers
         }
 
@@ -772,9 +772,8 @@ internal constructor(
             }
         }
 
-        // Remove local 0.0.0.0 listener
-        rtcConfig.iceTransportsType = PeerConnection.IceTransportsType.NOHOST
-        rtcConfig.maxIPv6Networks = 0
+        // Remove local 0.0.0.0 listener; disable tcp(server current not support tcp forward)
+        rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED
 
         return rtcConfig
     }
@@ -972,7 +971,7 @@ internal constructor(
     }
 
     override fun onLeave(leave: LeaveRequest) {
-        LKLog.d { "leave request received: reason = ${leave.reason.name}" }
+        LKLog.d { "leave request received: reason = ${leave.reason.name}, action = ${leave.action.name}" }
 
         abortPendingPublishTracks()
 
