@@ -110,11 +110,11 @@ open class Participant(
     @get:FlowObservable
     var isSpeaking: Boolean by flowDelegate(false) { newValue, oldValue ->
         if (newValue != oldValue) {
-            internalListener?.onSpeakingChanged(this)
-            eventBus.postEvent(ParticipantEvent.SpeakingChanged(this, newValue), scope)
             if (newValue) {
                 lastSpokeAt = Date().time
             }
+            internalListener?.onSpeakingChanged(this)
+            eventBus.postEvent(ParticipantEvent.SpeakingChanged(this, newValue), scope)
         }
     }
         @VisibleForTesting set
