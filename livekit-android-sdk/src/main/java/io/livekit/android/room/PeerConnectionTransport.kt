@@ -131,13 +131,18 @@ constructor(
         return result
     }
 
-    val negotiate = debounce<MediaConstraints?, Unit>(20, coroutineScope) {
+    private val negotiate = debounce<MediaConstraints?, Unit>(20, coroutineScope) {
         if (it != null) {
             createAndSendOffer(it)
         } else {
             createAndSendOffer()
         }
     }
+
+   @Synchronized
+   fun negotiateSync(m: MediaConstraints?) {
+           negotiate.invoke(m)
+   }
 
     private suspend fun createAndSendOffer(constraints: MediaConstraints = MediaConstraints()) {
         if (listener == null) {

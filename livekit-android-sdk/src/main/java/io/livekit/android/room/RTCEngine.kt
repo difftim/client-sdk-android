@@ -616,7 +616,7 @@ internal constructor(
         hasPublished = true
 
         coroutineScope.launch {
-            publisher?.negotiate?.invoke(getPublisherOfferConstraints())
+            publisher?.negotiateSync(getPublisherOfferConstraints())
         }
     }
 
