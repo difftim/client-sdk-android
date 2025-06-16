@@ -276,6 +276,9 @@ enum class DisconnectReason {
     USER_UNAVAILABLE,
     USER_REJECTED,
     SIP_TRUNK_FAILURE,
+
+    // This is used when the reconnection attempt failed
+    RECONNECT_FAILED,
 }
 
 /**

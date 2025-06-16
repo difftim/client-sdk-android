@@ -597,7 +597,7 @@ internal constructor(
             }
 
             close("Failed reconnecting")
-            listener?.onEngineDisconnected(DisconnectReason.UNKNOWN_REASON)
+            listener?.onEngineDisconnected(DisconnectReason.RECONNECT_FAILED)
         }
 
         reconnectingJob = job
