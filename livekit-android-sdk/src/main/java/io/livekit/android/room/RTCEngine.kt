@@ -821,7 +821,7 @@ internal constructor(
         @VisibleForTesting
         const val LOSSY_DATA_CHANNEL_LABEL = "_lossy"
         internal const val MAX_DATA_PACKET_SIZE = 15360 // 15 KB
-        private const val MAX_RECONNECT_RETRIES = 10
+        private const val MAX_RECONNECT_RETRIES = 14 // ~60s
         private const val MAX_RECONNECT_TIMEOUT = 60 * 1000
         private const val MAX_ICE_CONNECT_TIMEOUT_MS = 20000
 
