@@ -1286,8 +1286,12 @@ constructor(
      */
     override fun onFullReconnecting() {
         localParticipant.prepareForFullReconnect()
+
+        // disable all remote participants, to avoid ParticipantDisconnect events
+        /*
         remoteParticipants.keys.toMutableSet() // copy keys to avoid concurrent modifications.
             .forEach { identity -> handleParticipantDisconnect(identity) }
+         */
     }
 
     /**
