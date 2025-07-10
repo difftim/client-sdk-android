@@ -668,12 +668,15 @@ constructor(
 
     private fun handleParticipantDisconnect(identity: Participant.Identity) {
         val newParticipants = mutableRemoteParticipants.toMutableMap()
+        val newActiveSpeakers =  mutableActiveSpeakers.toMutableList()
         val removedParticipant = newParticipants.remove(identity) ?: return
         removedParticipant.trackPublications.values.toList().forEach { publication ->
             removedParticipant.unpublishTrack(publication.sid, true)
         }
+        newActiveSpeakers.remove(removedParticipant)
 
         mutableRemoteParticipants = newParticipants
+        mutableActiveSpeakers = newActiveSpeakers
         eventBus.postEvent(RoomEvent.ParticipantDisconnected(this, removedParticipant), coroutineScope)
 
         localParticipant.handleParticipantDisconnect(identity)
