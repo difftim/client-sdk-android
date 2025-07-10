@@ -103,9 +103,17 @@ constructor(
                     options.captureParams.width,
                     options.captureParams.height,
                 )
-                return Dimensions(size.width, size.height)
+                return if (options.isPortrait == true) {
+                    Dimensions(size.height, size.width)
+                } else {
+                    Dimensions(size.width, size.height)
+                }
             }
-            return Dimensions(options.captureParams.width, options.captureParams.height)
+            return if (options.isPortrait == true) {
+                Dimensions(options.captureParams.height, options.captureParams.width)
+            } else {
+                Dimensions(options.captureParams.width, options.captureParams.height)
+            }
         }
 
     internal var transceiver: RtpTransceiver? = null

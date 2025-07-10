@@ -164,7 +164,15 @@ abstract class Track(
         }
     }
 
-    data class Dimensions(val width: Int, val height: Int)
+    data class Dimensions(val width: Int, val height: Int) {
+        fun applyRotation(rotation: Int): Dimensions {
+            return if (rotation == 90 || rotation == 270) {
+                Dimensions(height, width)
+            } else {
+                this
+            }
+        }
+    }
 
     /**
      * Starts the track.
