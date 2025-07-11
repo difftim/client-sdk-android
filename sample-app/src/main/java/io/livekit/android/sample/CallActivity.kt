@@ -31,6 +31,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.xwray.groupie.GroupieAdapter
+import io.livekit.android.audio.AudioProcessorOptions
 import io.livekit.android.sample.common.R
 import io.livekit.android.sample.databinding.CallActivityBinding
 import io.livekit.android.sample.dialog.showAudioProcessorSwitchDialog
@@ -40,8 +41,10 @@ import io.livekit.android.sample.model.StressTest
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
+import org.difft.android.libraries.denoise_filter.DenoisePluginAudioProcessor
 
 class CallActivity : AppCompatActivity() {
+    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true)
 
     private val viewModel: CallViewModel by viewModelByFactory {
         val args = intent.getParcelableExtra<BundleArgs>(KEY_ARGS)
@@ -54,6 +57,9 @@ class CallActivity : AppCompatActivity() {
             e2eeKey = args.e2eeKey,
             stressTest = args.stressTest,
             application = application,
+            // audioProcessorOptions = AudioProcessorOptions(
+            //     capturePostProcessor = denoiser
+            // )
         )
     }
     private lateinit var binding: CallActivityBinding
@@ -239,6 +245,8 @@ class CallActivity : AppCompatActivity() {
         binding.audienceRow.adapter = null
         binding.speakerView.adapter = null
         super.onDestroy()
+
+        denoiser.release()
     }
 
     companion object {
