@@ -84,7 +84,7 @@ class ParticipantItem(
         coroutineScope?.launch {
             participant::isMicrophoneEnabled.flow
                 .collect { isMicEnabled ->
-                    viewBinding.muteIndicator.visibility = if (isMicEnabled) View.VISIBLE else View.INVISIBLE
+                    viewBinding.muteIndicator.visibility = if (!isMicEnabled) View.VISIBLE else View.INVISIBLE
                 }
         }
         coroutineScope?.launch {
