@@ -96,7 +96,7 @@ afterEvaluate { project ->
     }
 
     if (project.getPlugins().hasPlugin('com.android.application') ||
-            project.getPlugins().hasPlugin('com.android.library')) {
+        project.getPlugins().hasPlugin('com.android.library')) {
 
         task androidJavadocs(type: Javadoc) {
             source = android.sourceSets.main.java.source

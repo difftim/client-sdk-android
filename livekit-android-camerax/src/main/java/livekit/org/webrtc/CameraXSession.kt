@@ -18,12 +18,15 @@ package livekit.org.webrtc
 
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF
 import android.hardware.camera2.CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON
 import android.hardware.camera2.CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF
 import android.hardware.camera2.CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON
 import android.hardware.camera2.CaptureRequest
+import android.os.Build
+import android.os.Build.VERSION
 import android.os.Handler
 import android.util.Range
 import android.util.Size
@@ -32,7 +35,7 @@ import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ExtendableBuilder
 import androidx.camera.core.Preview
 import androidx.camera.core.Preview.SurfaceProvider
 import androidx.camera.core.UseCase
@@ -105,6 +108,13 @@ internal constructor(
         }
     }
 
+    private val cameraDevice: CameraDeviceId
+        get() {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            return findCamera(cameraManager, cameraId)
+                ?: throw IllegalArgumentException("Camera ID $cameraId not found")
+        }
+
     init {
         cameraThreadHandler.post {
             start()
@@ -157,18 +167,26 @@ internal constructor(
                     } ?: request.willNotProvideSurface()
                 }
 
-                // Set image analysis - camera params
-                val imageAnalysis = setImageAnalysis()
-
                 // Select camera by ID
                 val cameraSelector = CameraSelector.Builder()
-                    .addCameraFilter { cameraInfo -> cameraInfo.filter { Camera2CameraInfo.from(it).cameraId == cameraId } }
+                    .addCameraFilter { cameraInfo -> cameraInfo.filter { Camera2CameraInfo.from(it).cameraId == cameraDevice.deviceId } }
                     .build()
 
                 try {
                     ContextCompat.getMainExecutor(context).execute {
                         // Preview
                         val preview = Preview.Builder()
+                            .setResolutionSelector(
+                                ResolutionSelector.Builder()
+                                    .setResolutionStrategy(
+                                        ResolutionStrategy(
+                                            Size(captureFormat?.width ?: width, captureFormat?.height ?: height),
+                                            ResolutionStrategy.FALLBACK_RULE_NONE,
+                                        ),
+                                    )
+                                    .build(),
+                            )
+                            .applyCameraSettings()
                             .build()
                             .also {
                                 it.setSurfaceProvider(surfaceProvider)
@@ -181,7 +199,6 @@ internal constructor(
                         camera = cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             cameraSelector,
-                            imageAnalysis,
                             preview,
                             *useCases,
                         )
@@ -198,39 +215,41 @@ internal constructor(
         )
     }
 
-    private fun setImageAnalysis() = ImageAnalysis.Builder()
-        .setResolutionSelector(
-            ResolutionSelector.Builder()
-                .setResolutionStrategy(ResolutionStrategy(Size(captureFormat?.width ?: width, captureFormat?.height ?: height), ResolutionStrategy.FALLBACK_RULE_NONE)).build(),
-        )
-        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).apply {
-            val cameraExtender = Camera2Interop.Extender(this)
-            captureFormat?.let { captureFormat ->
-                cameraExtender.setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                    Range(
-                        captureFormat.framerate.min / fpsUnitFactor,
-                        captureFormat.framerate.max / fpsUnitFactor,
-                    ),
-                )
-                cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
-                when (stabilizationMode) {
-                    StabilizationMode.OPTICAL -> {
-                        cameraExtender.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, LENS_OPTICAL_STABILIZATION_MODE_ON)
-                        cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE_OFF)
-                    }
+    private fun <T> ExtendableBuilder<T>.applyCameraSettings(): ExtendableBuilder<T> {
+        val cameraExtender = Camera2Interop.Extender(this)
 
-                    StabilizationMode.VIDEO -> {
-                        cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE_ON)
-                        cameraExtender.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, LENS_OPTICAL_STABILIZATION_MODE_OFF)
-                    }
-
-                    else -> Unit
-                }
+        cameraDevice.physicalId?.let { physicalId ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                cameraExtender.setPhysicalCameraId(physicalId)
             }
         }
-        .build()
+
+        val captureFormat = this@CameraXSession.captureFormat ?: return this
+        cameraExtender.setCaptureRequestOption(
+            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+            Range(
+                captureFormat.framerate.min / fpsUnitFactor,
+                captureFormat.framerate.max / fpsUnitFactor,
+            ),
+        )
+        cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+        cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+        when (stabilizationMode) {
+            StabilizationMode.OPTICAL -> {
+                cameraExtender.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, LENS_OPTICAL_STABILIZATION_MODE_ON)
+                cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+            }
+
+            StabilizationMode.VIDEO -> {
+                cameraExtender.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE_ON)
+                cameraExtender.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, LENS_OPTICAL_STABILIZATION_MODE_OFF)
+            }
+
+            else -> {
+            }
+        }
+        return this
+    }
 
     private fun stopInternal() {
         Logging.d(TAG, "Stop internal")
@@ -265,7 +284,7 @@ internal constructor(
     }
 
     private fun obtainCameraConfiguration() {
-        val camera = cameraProvider.availableCameraInfos.map { Camera2CameraInfo.from(it) }.first { it.cameraId == cameraId }
+        val camera = cameraProvider.availableCameraInfos.map { Camera2CameraInfo.from(it) }.first { it.cameraId == cameraDevice.deviceId }
 
         cameraOrientation = camera.getCameraCharacteristic(CameraCharacteristics.SENSOR_ORIENTATION) ?: -1
         isCameraFrontFacing = camera.getCameraCharacteristic(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_FRONT
@@ -314,6 +333,30 @@ internal constructor(
             rotation = 360 - rotation
         }
         return (cameraOrientation + rotation) % 360
+    }
+
+    private data class CameraDeviceId(val deviceId: String, val physicalId: String?)
+
+    private fun findCamera(
+        cameraManager: CameraManager,
+        deviceId: String,
+    ): CameraDeviceId? {
+        for (id in cameraManager.cameraIdList) {
+            // First check if deviceId is a direct logical camera ID
+            if (id == deviceId) return CameraDeviceId(id, null)
+
+            // Then check if deviceId is a physical camera ID in a logical camera
+            if (VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val characteristic = cameraManager.getCameraCharacteristics(id)
+
+                for (physicalId in characteristic.physicalCameraIds) {
+                    if (deviceId == physicalId) {
+                        return CameraDeviceId(id, physicalId)
+                    }
+                }
+            }
+        }
+        return null
     }
 
     companion object {

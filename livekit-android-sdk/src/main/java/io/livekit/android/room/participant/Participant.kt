@@ -32,6 +32,7 @@ import io.livekit.android.util.flow
 import io.livekit.android.util.flowDelegate
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +91,27 @@ open class Participant(
     @FlowObservable
     @get:FlowObservable
     var identity: Identity? by flowDelegate(identity)
+        @VisibleForTesting set
+
+    /**
+     * The participant state.
+     *
+     * Changes can be observed by using [io.livekit.android.util.flow]
+     */
+    @FlowObservable
+    @get:FlowObservable
+    var state: State by flowDelegate(State.UNKNOWN) { newState, oldState ->
+        if (newState != oldState) {
+            eventBus.postEvent(
+                ParticipantEvent.StateChanged(
+                    participant = this,
+                    newState = newState,
+                    oldState = oldState,
+                ),
+                scope,
+            )
+        }
+    }
         @VisibleForTesting set
 
     /**
@@ -249,6 +271,7 @@ open class Participant(
     var trackPublications by flowDelegate(emptyMap<String, TrackPublication>())
         protected set
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun Flow<Map<String, TrackPublication>>.trackUpdateFlow(): Flow<List<Pair<TrackPublication, Track?>>> {
         return flatMapLatest { videoTracks ->
             if (videoTracks.isEmpty()) {
@@ -344,23 +367,43 @@ open class Participant(
         return null
     }
 
-    fun isCameraEnabled(): Boolean {
-        val pub = getTrackPublication(Track.Source.CAMERA)
-        return isTrackPublicationEnabled(pub)
-    }
+    @FlowObservable
+    @get:FlowObservable
+    val isMicrophoneEnabled by flowDelegate(
+        stateFlow = ::audioTrackPublications.flow
+            .map { it.firstOrNull { (pub, _) -> pub.source == Track.Source.MICROPHONE } ?: (null to null) }
+            .isTrackEnabledDetector()
+            .stateIn(delegateScope, SharingStarted.Eagerly, false),
+    )
 
-    fun isMicrophoneEnabled(): Boolean {
-        val pub = getTrackPublication(Track.Source.MICROPHONE)
-        return isTrackPublicationEnabled(pub)
-    }
+    @FlowObservable
+    @get:FlowObservable
+    val isCameraEnabled by flowDelegate(
+        stateFlow = ::videoTrackPublications.flow
+            .map { it.firstOrNull { (pub, _) -> pub.source == Track.Source.CAMERA } ?: (null to null) }
+            .isTrackEnabledDetector()
+            .stateIn(delegateScope, SharingStarted.Eagerly, false),
+    )
 
-    fun isScreenShareEnabled(): Boolean {
-        val pub = getTrackPublication(Track.Source.SCREEN_SHARE)
-        return isTrackPublicationEnabled(pub)
-    }
+    @FlowObservable
+    @get:FlowObservable
+    val isScreenShareEnabled by flowDelegate(
+        stateFlow = ::videoTrackPublications.flow
+            .map { it.firstOrNull { (pub, _) -> pub.source == Track.Source.SCREEN_SHARE } ?: (null to null) }
+            .isTrackEnabledDetector()
+            .stateIn(delegateScope, SharingStarted.Eagerly, false),
+    )
 
-    private fun isTrackPublicationEnabled(pub: TrackPublication?): Boolean {
-        return !(pub?.muted ?: true)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun Flow<Pair<TrackPublication?, Track?>>.isTrackEnabledDetector(): Flow<Boolean> {
+        return this.flatMapLatest { (pub, track) ->
+            if (pub == null) {
+                flowOf(false to track)
+            } else {
+                pub::muted.flow
+                    .map { muted -> muted to track }
+            }
+        }.map { (muted, track) -> (!muted && track != null) }
     }
 
     /**
@@ -377,6 +420,7 @@ open class Participant(
             permissions = ParticipantPermission.fromProto(info.permission)
         }
         attributes = info.attributesMap
+        state = State.fromProto(info.state)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -470,6 +514,34 @@ open class Participant(
                     LivekitModels.ParticipantInfo.Kind.EGRESS -> EGRESS
                     LivekitModels.ParticipantInfo.Kind.SIP -> SIP
                     LivekitModels.ParticipantInfo.Kind.UNRECOGNIZED -> UNKNOWN
+                }
+            }
+        }
+    }
+
+    enum class State {
+        // websocket' connected, but not offered yet
+        JOINING,
+
+        // server received client offer
+        JOINED,
+
+        // ICE connectivity established
+        ACTIVE,
+
+        // WS disconnected
+        DISCONNECTED,
+
+        UNKNOWN;
+
+        companion object {
+            fun fromProto(proto: LivekitModels.ParticipantInfo.State): State {
+                return when (proto) {
+                    LivekitModels.ParticipantInfo.State.JOINING -> JOINING
+                    LivekitModels.ParticipantInfo.State.JOINED -> JOINED
+                    LivekitModels.ParticipantInfo.State.ACTIVE -> ACTIVE
+                    LivekitModels.ParticipantInfo.State.DISCONNECTED -> DISCONNECTED
+                    LivekitModels.ParticipantInfo.State.UNRECOGNIZED -> UNKNOWN
                 }
             }
         }

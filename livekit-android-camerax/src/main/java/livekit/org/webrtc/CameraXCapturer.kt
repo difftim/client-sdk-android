@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 LiveKit, Inc.
+ * Copyright 2024-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,12 +32,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 @ExperimentalCamera2Interop
 internal class CameraXCapturer(
-    context: Context,
+    enumerator: CameraXEnumerator,
     private val lifecycleOwner: LifecycleOwner,
     cameraName: String?,
     eventsHandler: CameraVideoCapturer.CameraEventsHandler?,
     private val useCases: Array<out UseCase> = emptyArray(),
-) : CameraCapturer(cameraName, eventsHandler, CameraXEnumerator(context, lifecycleOwner)) {
+) : CameraCapturer(cameraName, eventsHandler, enumerator) {
 
     @FlowObservable
     @get:FlowObservable

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 LiveKit, Inc.
+ * Copyright 2023-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,13 +61,17 @@ class CameraXHelper {
                 eventsHandler: CameraEventsDispatchHandler,
             ): VideoCapturer {
                 val enumerator = provideEnumerator(context)
-                val targetDeviceName = enumerator.findCamera(options.deviceId, options.position)
-                val targetVideoCapturer = enumerator.createCapturer(targetDeviceName, eventsHandler) as CameraXCapturer
+                val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+
+                val targetDevice = enumerator.findCamera(options.deviceId, options.position)
+                val targetDeviceId = targetDevice?.deviceId
+
+                val targetVideoCapturer = enumerator.createCapturer(targetDeviceId, eventsHandler) as CameraXCapturer
 
                 return CameraXCapturerWithSize(
                     targetVideoCapturer,
-                    context.getSystemService(Context.CAMERA_SERVICE) as CameraManager,
-                    targetDeviceName,
+                    cameraManager,
+                    targetDeviceId,
                     eventsHandler,
                 )
             }

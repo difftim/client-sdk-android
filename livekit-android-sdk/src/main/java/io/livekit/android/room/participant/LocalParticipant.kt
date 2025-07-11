@@ -19,6 +19,7 @@ package io.livekit.android.room.participant
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.CheckResult
 import androidx.annotation.VisibleForTesting
 import com.google.protobuf.ByteString
 import com.vdurmont.semver4j.Semver
@@ -34,6 +35,7 @@ import io.livekit.android.room.DefaultsManager
 import io.livekit.android.room.RTCEngine
 import io.livekit.android.room.Room
 import io.livekit.android.room.TrackBitrateInfo
+import io.livekit.android.room.datastream.outgoing.OutgoingDataStreamManager
 import io.livekit.android.room.isSVCCodec
 import io.livekit.android.room.rpc.RpcManager
 import io.livekit.android.room.track.DataPublishReliability
@@ -49,6 +51,7 @@ import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.room.track.VideoCaptureParameter
 import io.livekit.android.room.track.VideoCodec
 import io.livekit.android.room.track.VideoEncoding
+import io.livekit.android.room.track.screencapture.ScreenCaptureParams
 import io.livekit.android.room.util.EncodingUtils
 import io.livekit.android.rpc.RpcError
 import io.livekit.android.util.LKLog
@@ -65,6 +68,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import livekit.LivekitModels
+import livekit.LivekitModels.AudioTrackFeature
 import livekit.LivekitModels.Codec
 import livekit.LivekitModels.DataPacket
 import livekit.LivekitModels.TrackInfo
@@ -106,7 +110,10 @@ internal constructor(
     coroutineDispatcher: CoroutineDispatcher,
     @Named(InjectionNames.SENDER)
     private val capabilitiesGetter: CapabilitiesGetter,
-) : Participant(Sid(""), null, coroutineDispatcher) {
+    private val outgoingDataStreamManager: OutgoingDataStreamManager,
+) : Participant(Sid(""), null, coroutineDispatcher),
+    OutgoingDataStreamManager by outgoingDataStreamManager,
+    RpcManager {
 
     var audioTrackCaptureDefaults: LocalAudioTrackOptions by defaultsManager::audioTrackCaptureDefaults
     var audioTrackPublishDefaults: AudioTrackPublishDefaults by defaultsManager::audioTrackPublishDefaults
@@ -133,6 +140,29 @@ internal constructor(
     private val sourcePubLocks = Track.Source.entries.associateWith { Mutex() }
 
     internal val enabledPublishVideoCodecs = Collections.synchronizedList(mutableListOf<Codec>())
+
+    private var defaultAudioTrack: LocalAudioTrack? = null
+    private var defaultVideoTrack: LocalVideoTrack? = null
+
+    /**
+     * Returns the default audio track, or creates one if it doesn't exist.
+     * @exception SecurityException will be thrown if [Manifest.permission.RECORD_AUDIO] permission is missing.
+     */
+    fun getOrCreateDefaultAudioTrack(): LocalAudioTrack {
+        return defaultAudioTrack ?: createAudioTrack().also {
+            defaultAudioTrack = it
+        }
+    }
+
+    /**
+     * Returns the default video track, or creates one if it doesn't exist.
+     * @exception SecurityException will be thrown if [Manifest.permission.CAMERA] permission is missing.
+     */
+    fun getOrCreateDefaultVideoTrack(): LocalVideoTrack {
+        return defaultVideoTrack ?: createVideoTrack().also {
+            defaultVideoTrack = it
+        }
+    }
 
     /**
      * Creates an audio track, recording audio through the microphone with the given [options].
@@ -220,6 +250,7 @@ internal constructor(
         mediaProjectionPermissionResultData: Intent,
         options: LocalVideoTrackOptions = screenShareTrackCaptureDefaults.copy(),
         videoProcessor: VideoProcessor? = null,
+        onStop: (Track) -> Unit,
     ): LocalScreencastVideoTrack {
         val screencastOptions = options.copy(isScreencast = true)
         return LocalScreencastVideoTrack.createTrack(
@@ -231,6 +262,7 @@ internal constructor(
             eglBase,
             screencastVideoTrackFactory,
             videoProcessor,
+            onStop,
         )
     }
 
@@ -251,10 +283,11 @@ internal constructor(
      *
      * @see Room.videoTrackCaptureDefaults
      * @see Room.videoTrackPublishDefaults
+     * @return true if the change was successful, or false if it failed.
      */
     @Throws(TrackException.PublishException::class)
-    suspend fun setCameraEnabled(enabled: Boolean) {
-        setTrackEnabled(Track.Source.CAMERA, enabled)
+    suspend fun setCameraEnabled(enabled: Boolean): Boolean {
+        return setTrackEnabled(Track.Source.CAMERA, enabled)
     }
 
     /**
@@ -266,10 +299,11 @@ internal constructor(
      *
      * @see Room.audioTrackCaptureDefaults
      * @see Room.audioTrackPublishDefaults
+     * @return true if the change was successful, or false if it failed.
      */
     @Throws(TrackException.PublishException::class)
-    suspend fun setMicrophoneEnabled(enabled: Boolean, publishMuted: Boolean = false) {
-        setTrackEnabled(Track.Source.MICROPHONE, enabled, publishMuted = publishMuted)
+    suspend fun setMicrophoneEnabled(enabled: Boolean, publishMuted: Boolean = false): Boolean  {
+        return setTrackEnabled(Track.Source.MICROPHONE, enabled, publishMuted = publishMuted)
     }
 
     /**
@@ -281,59 +315,89 @@ internal constructor(
      *
      * For screenshare audio, a [ScreenAudioCapturer] can be used.
      *
-     * @param mediaProjectionPermissionResultData The resultData returned from launching
+     * @param screenCaptureParams When enabling the screenshare, this must be provided with
+     * [ScreenCaptureParams.mediaProjectionPermissionResultData] containing resultData returned from launching
      * [MediaProjectionManager.createScreenCaptureIntent()](https://developer.android.com/reference/android/media/projection/MediaProjectionManager#createScreenCaptureIntent()).
      * @throws IllegalArgumentException if attempting to enable screenshare without [mediaProjectionPermissionResultData]
      * @see Room.screenShareTrackCaptureDefaults
      * @see Room.screenShareTrackPublishDefaults
      * @see ScreenAudioCapturer
+     * @return true if the change was successful, or false if it failed.
      */
     @Throws(TrackException.PublishException::class)
     suspend fun setScreenShareEnabled(
         enabled: Boolean,
-        mediaProjectionPermissionResultData: Intent? = null,
-    ) {
-        setTrackEnabled(Track.Source.SCREEN_SHARE, enabled, mediaProjectionPermissionResultData)
+        screenCaptureParams: ScreenCaptureParams? = null,
+    ): Boolean {
+        return setTrackEnabled(Track.Source.SCREEN_SHARE, enabled, screenCaptureParams)
     }
 
     private suspend fun setTrackEnabled(
         source: Track.Source,
         enabled: Boolean,
-        mediaProjectionPermissionResultData: Intent? = null,
+        screenCaptureParams: ScreenCaptureParams? = null,
         publishMuted: Boolean = false,
-    ) {
+    ): Boolean {
+        var success = false
         val pubLock = sourcePubLocks[source]!!
         pubLock.withLock {
             val pub = getTrackPublication(source)
             if (enabled) {
                 if (pub != null) {
+                    // Publication exists, just unmute the existing track.
                     pub.muted = false
                     if (source == Track.Source.CAMERA && pub.track is LocalVideoTrack) {
                         (pub.track as? LocalVideoTrack)?.startCapture()
                     }
+                    success = true
                 } else {
+                    // Not published yet, create the default track and publish.
                     when (source) {
                         Track.Source.CAMERA -> {
-                            val track = createVideoTrack()
+                            val track = getOrCreateDefaultVideoTrack()
+                            track.start()
                             track.startCapture()
-                            publishVideoTrack(track)
+                            if (!publishVideoTrack(track)) {
+                                track.stopCapture()
+                                track.stop()
+                            } else {
+                                success = true
+                            }
                         }
 
                         Track.Source.MICROPHONE -> {
-                            val track = createAudioTrack()
+                            val track = getOrCreateDefaultAudioTrack()
                             track.prewarm()
-                            publishAudioTrack(track, publishMuted = publishMuted)
+                            track.start()
+                            if (!publishAudioTrack(track, publishMuted = publishMuted)) {
+                                track.stop()
+                                track.stopPrewarm()
+                            } else {
+                                success = true
+                            }
                         }
 
                         Track.Source.SCREEN_SHARE -> {
-                            if (mediaProjectionPermissionResultData == null) {
-                                throw IllegalArgumentException("Media Projection permission result data is required to create a screen share track.")
+                            if (screenCaptureParams == null) {
+                                throw IllegalArgumentException("Media Projection params is required to create a screen share track.")
                             }
                             val track =
-                                createScreencastTrack(mediaProjectionPermissionResultData = mediaProjectionPermissionResultData)
-                            track.startForegroundService(null, null)
+                                createScreencastTrack(mediaProjectionPermissionResultData = screenCaptureParams.mediaProjectionPermissionResultData) {
+                                    unpublishTrack(it)
+                                    screenCaptureParams.onStop?.invoke()
+                                }
+                            track.startForegroundService(screenCaptureParams.notificationId, screenCaptureParams.notification)
                             track.startCapture()
-                            publishVideoTrack(track, options = VideoTrackPublishOptions(null, screenShareTrackPublishDefaults))
+                            if (!publishVideoTrack(track, options = VideoTrackPublishOptions(null, screenShareTrackPublishDefaults))) {
+                                screenCaptureParams.onStop?.invoke()
+                                track.apply {
+                                    stopCapture()
+                                    stop()
+                                    dispose()
+                                }
+                            } else {
+                                success = true
+                            }
                         }
 
                         else -> {
@@ -355,9 +419,12 @@ internal constructor(
                         }
                     }
                 }
+                success = true
             }
             return@withLock
         }
+
+        return success
     }
 
     /**
@@ -371,10 +438,10 @@ internal constructor(
         options: AudioTrackPublishOptions = AudioTrackPublishOptions(
             null,
             audioTrackPublishDefaults,
-        ),
+        ).copy(preconnect = defaultsManager.isPrerecording),
         publishListener: PublishListener? = null,
         publishMuted: Boolean = false,
-    ) {
+    ): Boolean {
         val encodings = listOf(
             RtpParameters.Encoding(null, true, null).apply {
                 if (options.audioBitrate != null && options.audioBitrate > 0) {
@@ -394,6 +461,7 @@ internal constructor(
             requestConfig = {
                 disableDtx = !options.dtx
                 disableRed = !options.red
+                addAllAudioFeatures(options.getFeaturesList())
                 source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
                 muted = !track.enabled
             },
@@ -404,11 +472,13 @@ internal constructor(
         if (publication != null) {
             val job = scope.launch {
                 track::features.flow.collect {
-                    engine.updateLocalAudioTrack(publication.sid, it)
+                    engine.updateLocalAudioTrack(publication.sid, it + options.getFeaturesList())
                 }
             }
             jobs[publication] = job
         }
+
+        return publication != null
     }
 
     /**
@@ -421,7 +491,7 @@ internal constructor(
         track: LocalVideoTrack,
         options: VideoTrackPublishOptions = VideoTrackPublishOptions(null, videoTrackPublishDefaults),
         publishListener: PublishListener? = null,
-    ) {
+    ): Boolean {
         @Suppress("NAME_SHADOWING") var options = options
 
         synchronized(enabledPublishVideoCodecs) {
@@ -457,7 +527,7 @@ internal constructor(
         val videoLayers =
             EncodingUtils.videoLayersFromEncodings(track.dimensions.width, track.dimensions.height, encodings, isSVC)
 
-        publishTrackImpl(
+        return publishTrackImpl(
             track = track,
             options = options,
             requestConfig = {
@@ -490,7 +560,7 @@ internal constructor(
             },
             encodings = encodings,
             publishListener = publishListener,
-        )
+        ) != null
     }
 
     private fun hasPermissionsToPublish(source: Track.Source): Boolean {
@@ -523,13 +593,22 @@ internal constructor(
         encodings: List<RtpParameters.Encoding> = emptyList(),
         publishListener: PublishListener? = null,
     ): LocalTrackPublication? {
+        fun onPublishFailure(e: TrackException.PublishException, triggerEvent: Boolean = true) {
+            publishListener?.onPublishFailure(e)
+            if (triggerEvent) {
+                eventBus.postEvent(ParticipantEvent.LocalTrackPublicationFailed(this, track, e), scope)
+            }
+        }
+
         val addTrackRequestBuilder = AddTrackRequest.newBuilder().apply {
             this.requestConfig()
         }
 
         val trackSource = Track.Source.fromProto(addTrackRequestBuilder.source ?: LivekitModels.TrackSource.UNRECOGNIZED)
         if (!hasPermissionsToPublish(trackSource)) {
-            throw TrackException.PublishException("Failed to publish track, insufficient permissions")
+            val exception = TrackException.PublishException("Failed to publish track, insufficient permissions")
+            onPublishFailure(exception)
+            throw exception
         }
 
         @Suppress("NAME_SHADOWING") var options = options
@@ -537,15 +616,21 @@ internal constructor(
         @Suppress("NAME_SHADOWING") var encodings = encodings
 
         if (localTrackPublications.any { it.track == track }) {
-            publishListener?.onPublishFailure(TrackException.PublishException("Track has already been published"))
+            onPublishFailure(TrackException.PublishException("Track has already been published"), triggerEvent = false)
             return null
         }
 
         if (engine.connectionState == ConnectionState.DISCONNECTED) {
-            publishListener?.onPublishFailure(TrackException.PublishException("Not connected!"))
+            onPublishFailure(TrackException.PublishException("Not connected!"))
+            return null
         }
 
-        val cid = track.rtcTrack.id()
+        val cid = try {
+            track.rtcTrack.id()
+        } catch (e: Exception) {
+            onPublishFailure(TrackException.PublishException("Failed to get track id", e))
+            return null
+        }
 
         // For fast publish, we can negotiate PC and request add track at the same time
         suspend fun negotiate() {
@@ -570,7 +655,7 @@ internal constructor(
 
             if (transceiver == null) {
                 val exception = TrackException.PublishException("null sender returned from peer connection")
-                publishListener?.onPublishFailure(exception)
+                onPublishFailure(exception)
                 throw exception
             }
 
@@ -604,7 +689,7 @@ internal constructor(
             // so no need to call negotiate manually.
         }
 
-        suspend fun requestAddTrack(): TrackInfo {
+        suspend fun requestAddTrack(): TrackInfo? {
             return try {
                 engine.addTrack(
                     cid = cid,
@@ -614,13 +699,12 @@ internal constructor(
                     builder = addTrackRequestBuilder,
                 )
             } catch (e: Exception) {
-                val exception = TrackException.PublishException("Failed to publish track", e)
-                publishListener?.onPublishFailure(exception)
-                throw exception
+                onPublishFailure(TrackException.PublishException("Failed to publish track", e))
+                null
             }
         }
 
-        val trackInfo: TrackInfo
+        val trackInfo: TrackInfo?
         if (enabledPublishVideoCodecs.isNotEmpty()) {
             // Can simultaneous publish and negotiate.
             // codec is pre-verified in publishVideoTrack
@@ -634,41 +718,45 @@ internal constructor(
         } else {
             // legacy path.
             trackInfo = requestAddTrack()
+            if (trackInfo != null) {
+                if (options is VideoTrackPublishOptions) {
+                    // server might not support the codec the client has requested, in that case, fallback
+                    // to a supported codec
+                    val primaryCodecMime = trackInfo.codecsList.firstOrNull()?.mimeType
 
-            if (options is VideoTrackPublishOptions) {
-                // server might not support the codec the client has requested, in that case, fallback
-                // to a supported codec
-                val primaryCodecMime = trackInfo.codecsList.firstOrNull()?.mimeType
+                    if (primaryCodecMime != null) {
+                        val updatedCodec = primaryCodecMime.mimeTypeToVideoCodec()
+                        if (updatedCodec != null && updatedCodec != options.videoCodec) {
+                            LKLog.d { "falling back to server selected codec: $updatedCodec" }
+                            options = options.copy(videoCodec = updatedCodec)
 
-                if (primaryCodecMime != null) {
-                    val updatedCodec = primaryCodecMime.mimeTypeToVideoCodec()
-                    if (updatedCodec != null && updatedCodec != options.videoCodec) {
-                        LKLog.d { "falling back to server selected codec: $updatedCodec" }
-                        options = options.copy(videoCodec = updatedCodec)
-
-                        // recompute encodings since bitrates/etc could have changed
-                        encodings = computeVideoEncodings((track as LocalVideoTrack).dimensions, options)
+                            // recompute encodings since bitrates/etc could have changed
+                            encodings = computeVideoEncodings((track as LocalVideoTrack).dimensions, options)
+                        }
                     }
                 }
-            }
 
-            negotiate()
+                negotiate()
+            }
         }
 
-        val publication = LocalTrackPublication(
-            info = trackInfo,
-            track = track,
-            participant = this,
-            options = options,
-        )
-        addTrackPublication(publication)
-        LKLog.v { "add track publication $publication" }
+        return if (trackInfo != null) {
+            val publication = LocalTrackPublication(
+                info = trackInfo,
+                track = track,
+                participant = this,
+                options = options,
+            )
+            addTrackPublication(publication)
+            LKLog.v { "add track publication $publication" }
 
-        publishListener?.onPublishSuccess(publication)
-        internalListener?.onTrackPublished(publication, this)
-        eventBus.postEvent(ParticipantEvent.LocalTrackPublished(this, publication), scope)
-
-        return publication
+            publishListener?.onPublishSuccess(publication)
+            internalListener?.onTrackPublished(publication, this)
+            eventBus.postEvent(ParticipantEvent.LocalTrackPublished(this, publication), scope)
+            publication
+        } else {
+            null
+        }
     }
 
     private fun computeVideoEncodings(
@@ -826,14 +914,17 @@ internal constructor(
      * @param reliability for delivery guarantee, use RELIABLE. for fastest delivery without guarantee, use LOSSY
      * @param topic the topic under which the message was published
      * @param identities list of participant identities to deliver the payload, null to deliver to everyone
+     *
+     * @return A [Result] that succeeds if the publish succeeded, or a failure containing the exception.
      */
     @Suppress("unused")
+    @CheckResult
     suspend fun publishData(
         data: ByteArray,
         reliability: DataPublishReliability = DataPublishReliability.RELIABLE,
         topic: String? = null,
         identities: List<Identity>? = null,
-    ) {
+    ): Result<Unit> {
         if (data.size > RTCEngine.MAX_DATA_PACKET_SIZE) {
             throw IllegalArgumentException("cannot publish data larger than " + RTCEngine.MAX_DATA_PACKET_SIZE)
         }
@@ -857,7 +948,7 @@ internal constructor(
             .setKind(kind)
             .build()
 
-        engine.sendData(dataPacket)
+        return engine.sendData(dataPacket)
     }
 
     /**
@@ -868,13 +959,16 @@ internal constructor(
      *
      * @param code an integer representing the DTMF signal code
      * @param digit the string representing the DTMF digit (e.g., "1", "#", "*")
+     *
+     * @return A [Result] that succeeds if the publish succeeded, or a failure containing the exception.
      */
 
     @Suppress("unused")
+    @CheckResult
     suspend fun publishDtmf(
         code: Int,
         digit: String,
-    ) {
+    ): Result<Unit> {
         val sipDTMF = LivekitModels.SipDTMF.newBuilder().setCode(code)
             .setDigit(digit)
             .build()
@@ -884,7 +978,7 @@ internal constructor(
             .setKind(LivekitModels.DataPacket.Kind.RELIABLE)
             .build()
 
-        engine.sendData(dataPacket)
+        return engine.sendData(dataPacket)
     }
 
     /**
@@ -920,8 +1014,7 @@ internal constructor(
      * @see RpcInvocationData
      * @see performRpc
      */
-    @Suppress("RedundantSuspendModifier")
-    suspend fun registerRpcMethod(
+    override suspend fun registerRpcMethod(
         method: String,
         handler: RpcHandler,
     ) {
@@ -933,7 +1026,7 @@ internal constructor(
      *
      * @param method The name of the RPC method to unregister
      */
-    fun unregisterRpcMethod(
+    override fun unregisterRpcMethod(
         method: String,
     ) {
         this.rpcHandlers.remove(method)
@@ -989,11 +1082,11 @@ internal constructor(
      * @return The response payload.
      * @throws RpcError on failure. Details in [RpcError.message].
      */
-    suspend fun performRpc(
+    override suspend fun performRpc(
         destinationIdentity: Identity,
         method: String,
         payload: String,
-        responseTimeout: Duration = 10.seconds,
+        responseTimeout: Duration,
     ): String = coroutineScope {
         val maxRoundTripLatency = 2.seconds
 
@@ -1010,13 +1103,19 @@ internal constructor(
 
         val requestId = UUID.randomUUID().toString()
 
-        publishRpcRequest(
+        val result = publishRpcRequest(
             destinationIdentity = destinationIdentity,
             requestId = requestId,
             method = method,
             payload = payload,
             responseTimeout = responseTimeout - maxRoundTripLatency,
         )
+
+        if (result.isFailure) {
+            val exception = result.exceptionOrNull() as? RpcError
+                ?: RpcError.BuiltinRpcError.SEND_FAILED.create(data = "Error while sending rpc request.", cause = result.exceptionOrNull())
+            throw exception
+        }
 
         val responsePayload = suspendCancellableCoroutine { continuation ->
             var ackTimeoutJob: Job? = null
@@ -1071,13 +1170,25 @@ internal constructor(
         return@coroutineScope responsePayload
     }
 
+    @CheckResult
+    private suspend fun rpcSendData(dataPacket: DataPacket): Result<Unit> {
+        val result = engine.sendData(dataPacket)
+
+        return if (result.isFailure) {
+            Result.failure(RpcError.BuiltinRpcError.SEND_FAILED.create(cause = result.exceptionOrNull()))
+        } else {
+            result
+        }
+    }
+
+    @CheckResult
     private suspend fun publishRpcRequest(
         destinationIdentity: Identity,
         requestId: String,
         method: String,
         payload: String,
         responseTimeout: Duration = 10.seconds,
-    ) {
+    ): Result<Unit> {
         if (payload.byteLength() > RTCEngine.MAX_DATA_PACKET_SIZE) {
             throw IllegalArgumentException("cannot publish data larger than " + RTCEngine.MAX_DATA_PACKET_SIZE)
         }
@@ -1096,15 +1207,16 @@ internal constructor(
             build()
         }
 
-        engine.sendData(dataPacket)
+        return rpcSendData(dataPacket)
     }
 
+    @CheckResult
     private suspend fun publishRpcResponse(
         destinationIdentity: Identity,
         requestId: String,
         payload: String?,
         error: RpcError?,
-    ) {
+    ): Result<Unit> {
         if (payload.byteLength() > RTCEngine.MAX_DATA_PACKET_SIZE) {
             throw IllegalArgumentException("cannot publish data larger than " + RTCEngine.MAX_DATA_PACKET_SIZE)
         }
@@ -1124,13 +1236,14 @@ internal constructor(
             build()
         }
 
-        engine.sendData(dataPacket)
+        return rpcSendData(dataPacket)
     }
 
+    @CheckResult
     private suspend fun publishRpcAck(
         destinationIdentity: Identity,
         requestId: String,
-    ) {
+    ): Result<Unit> {
         val dataPacket = with(DataPacket.newBuilder()) {
             addDestinationIdentities(destinationIdentity.value)
             kind = DataPacket.Kind.RELIABLE
@@ -1141,7 +1254,7 @@ internal constructor(
             build()
         }
 
-        engine.sendData(dataPacket)
+        return rpcSendData(dataPacket)
     }
 
     private fun handleIncomingRpcAck(requestId: String) {
@@ -1174,7 +1287,12 @@ internal constructor(
         responseTimeout: Duration,
         version: Int,
     ) {
-        publishRpcAck(callerIdentity, requestId)
+        publishRpcAck(callerIdentity, requestId).also { result ->
+            if (result.isFailure) {
+                LKLog.w(result.exceptionOrNull()) { "Error sending ack for request $requestId." }
+                return
+            }
+        }
 
         if (version != RpcManager.RPC_VERSION) {
             publishRpcResponse(
@@ -1182,7 +1300,12 @@ internal constructor(
                 requestId = requestId,
                 payload = null,
                 error = RpcError.BuiltinRpcError.UNSUPPORTED_VERSION.create(),
-            )
+            ).also { result ->
+                if (result.isFailure) {
+                    LKLog.w(result.exceptionOrNull()) { "Error sending error response for request $requestId." }
+                }
+            }
+
             return
         }
 
@@ -1194,7 +1317,12 @@ internal constructor(
                 requestId = requestId,
                 payload = null,
                 error = RpcError.BuiltinRpcError.UNSUPPORTED_METHOD.create(),
-            )
+            ).also { result ->
+                if (result.isFailure) {
+                    LKLog.w(result.exceptionOrNull()) { "Error sending error response for request $requestId." }
+                }
+            }
+
             return
         }
 
@@ -1231,7 +1359,11 @@ internal constructor(
             requestId = requestId,
             payload = responsePayload,
             error = responseError,
-        )
+        ).also { result ->
+            if (result.isFailure) {
+                LKLog.w(result.exceptionOrNull()) { "Error sending error response for request $requestId." }
+            }
+        }
     }
 
     internal fun handleParticipantDisconnect(identity: Identity) {
@@ -1444,10 +1576,13 @@ internal constructor(
             unpublishTrack(track, false)
             // Cannot publish muted tracks.
             if (!pub.muted) {
-                when (track) {
+                val success = when (track) {
                     is LocalAudioTrack -> publishAudioTrack(track, pub.options as AudioTrackPublishOptions, null)
                     is LocalVideoTrack -> publishVideoTrack(track, pub.options as VideoTrackPublishOptions, null)
                     else -> throw IllegalStateException("LocalParticipant has a non local track publish?")
+                }
+                if (!success) {
+                    track.stop()
                 }
             }
         }
@@ -1495,6 +1630,10 @@ internal constructor(
                 }
             }
         }
+        defaultAudioTrack?.dispose()
+        defaultAudioTrack = null
+        defaultVideoTrack?.dispose()
+        defaultVideoTrack = null
     }
 
     /**
@@ -1687,6 +1826,7 @@ data class AudioTrackPublishOptions(
     override val red: Boolean = true,
     override val source: Track.Source? = null,
     override val stream: String? = null,
+    val preconnect: Boolean = false,
 ) : BaseAudioTrackPublishOptions(), TrackPublishOptions {
     constructor(
         name: String? = null,
@@ -1701,6 +1841,17 @@ data class AudioTrackPublishOptions(
         source = source,
         stream = stream,
     )
+
+    internal fun getFeaturesList(): Set<AudioTrackFeature> {
+        val features = mutableSetOf<AudioTrackFeature>()
+        if (!dtx) {
+            features.add(AudioTrackFeature.TF_NO_DTX)
+        }
+        if (preconnect) {
+            features.add(AudioTrackFeature.TF_PRECONNECT_BUFFER)
+        }
+        return features
+    }
 }
 
 data class ParticipantTrackPermission(

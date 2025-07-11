@@ -27,6 +27,7 @@ import io.livekit.android.room.participant.RemoteParticipant
 import io.livekit.android.room.track.LocalTrackPublication
 import io.livekit.android.room.track.RemoteTrackPublication
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.TrackException
 import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.room.types.TranscriptionSegment
 import livekit.LivekitModels
@@ -137,6 +138,17 @@ sealed class RoomEvent(val room: Room) : Event() {
      * not fire for tracks that are already published
      */
     class TrackPublished(room: Room, val publication: TrackPublication, val participant: Participant) : RoomEvent(room)
+
+    /**
+     * Error had occurred while publishing a track, for LocalParticipant only
+     * not fire for tracks that are already published
+     */
+    class TrackPublicationFailed(
+        room: Room,
+        val track: Track,
+        val participant: LocalParticipant,
+        e: TrackException.PublishException,
+    ) : RoomEvent(room)
 
     /**
      * A [Participant] has unpublished a track
@@ -259,6 +271,16 @@ sealed class RoomEvent(val room: Room) : Event() {
          */
         val publication: TrackPublication?,
     ) : RoomEvent(room)
+
+    /**
+     * The state for a participant has changed.
+     */
+    class ParticipantStateChanged(
+        room: Room,
+        val participant: Participant,
+        val newState: Participant.State,
+        val oldState: Participant.State,
+    ) : RoomEvent(room)
 }
 
 enum class DisconnectReason {
@@ -276,6 +298,7 @@ enum class DisconnectReason {
     USER_UNAVAILABLE,
     USER_REJECTED,
     SIP_TRUNK_FAILURE,
+    CONNECTION_TIMEOUT,
 
     // This is used when the reconnection attempt failed
     RECONNECT_FAILED,
@@ -299,6 +322,7 @@ fun LivekitModels.DisconnectReason?.convert(): DisconnectReason {
         LivekitModels.DisconnectReason.USER_UNAVAILABLE -> DisconnectReason.USER_UNAVAILABLE
         LivekitModels.DisconnectReason.USER_REJECTED -> DisconnectReason.USER_REJECTED
         LivekitModels.DisconnectReason.SIP_TRUNK_FAILURE -> DisconnectReason.SIP_TRUNK_FAILURE
+        LivekitModels.DisconnectReason.CONNECTION_TIMEOUT -> DisconnectReason.CONNECTION_TIMEOUT
         LivekitModels.DisconnectReason.UNKNOWN_REASON,
         LivekitModels.DisconnectReason.UNRECOGNIZED,
         null,

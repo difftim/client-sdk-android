@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 LiveKit, Inc.
+ * Copyright 2023-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import io.livekit.android.room.participant.RemoteParticipant
 import io.livekit.android.room.track.LocalTrackPublication
 import io.livekit.android.room.track.RemoteTrackPublication
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.TrackException
 import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.room.types.TranscriptionSegment
 
@@ -87,6 +88,15 @@ sealed class ParticipantEvent(open val participant: Participant) : Event() {
      */
     class LocalTrackPublished(override val participant: LocalParticipant, val publication: LocalTrackPublication) :
         ParticipantEvent(participant)
+
+    /**
+     * Error had occurred while publishing a track
+     */
+    class LocalTrackPublicationFailed(
+        override val participant: LocalParticipant,
+        val track: Track,
+        val e: TrackException.PublishException,
+    ) : ParticipantEvent(participant)
 
     /**
      * A [LocalParticipant] has unpublished a track
@@ -186,5 +196,14 @@ sealed class ParticipantEvent(open val participant: Participant) : Event() {
          * The applicable track publication these transcriptions apply to.
          */
         val publication: TrackPublication?,
+    ) : ParticipantEvent(participant)
+
+    /**
+     * A participant's state has changed.
+     */
+    class StateChanged(
+        override val participant: Participant,
+        val newState: Participant.State,
+        val oldState: Participant.State,
     ) : ParticipantEvent(participant)
 }

@@ -42,10 +42,12 @@ import io.livekit.android.e2ee.E2EEOptions
 import io.livekit.android.events.*
 import io.livekit.android.memory.CloseableManager
 import io.livekit.android.renderer.TextureViewRenderer
+import io.livekit.android.room.datastream.incoming.IncomingDataStreamManager
 import io.livekit.android.room.metrics.collectMetrics
 import io.livekit.android.room.network.NetworkCallbackManagerFactory
 import io.livekit.android.room.participant.*
 import io.livekit.android.room.provisions.LKObjects
+import io.livekit.android.room.rpc.RpcManager
 import io.livekit.android.room.track.*
 import io.livekit.android.room.types.toSDKType
 import io.livekit.android.room.util.ConnectionWarmer
@@ -68,12 +70,13 @@ import livekit.org.webrtc.audio.AudioDeviceModule
 import java.net.URI
 import java.util.Date
 import javax.inject.Named
+import kotlin.time.Duration
 
 class Room
 @AssistedInject
 constructor(
     @Assisted private val context: Context,
-    private val engine: RTCEngine,
+    internal val engine: RTCEngine,
     private val eglBase: EglBase,
     localParticipantFactory: LocalParticipant.Factory,
     private val defaultsManager: DefaultsManager,
@@ -106,7 +109,8 @@ constructor(
     private val regionUrlProviderFactory: RegionUrlProvider.Factory,
     private val connectionWarmer: ConnectionWarmer,
     private val audioRecordPrewarmer: AudioRecordPrewarmer,
-) : RTCEngine.Listener, ParticipantListener {
+    private val incomingDataStreamManager: IncomingDataStreamManager,
+) : RTCEngine.Listener, ParticipantListener, RpcManager, IncomingDataStreamManager by incomingDataStreamManager {
 
     private lateinit var coroutineScope: CoroutineScope
     private val eventBus = BroadcastEventBus<RoomEvent>()
@@ -316,6 +320,8 @@ constructor(
 
     private var transcriptionReceivedTimes = mutableMapOf<String, Long>()
 
+    internal var isPrerecording by defaultsManager::isPrerecording
+
     private fun getCurrentRoomOptions(): RoomOptions =
         RoomOptions(
             adaptiveStream = adaptiveStream,
@@ -477,14 +483,21 @@ constructor(
             ensureActive()
             networkCallbackManager.registerCallback()
             if (options.audio) {
-                val audioTrack = localParticipant.createAudioTrack()
+                val audioTrack = localParticipant.getOrCreateDefaultAudioTrack()
                 audioTrack.prewarm()
-                localParticipant.publishAudioTrack(audioTrack)
+                if (!localParticipant.publishAudioTrack(audioTrack)) {
+                    audioTrack.stop()
+                    audioTrack.stopPrewarm()
+                }
             }
             ensureActive()
             if (options.video) {
-                val videoTrack = localParticipant.createVideoTrack()
-                localParticipant.publishVideoTrack(videoTrack)
+                val videoTrack = localParticipant.getOrCreateDefaultVideoTrack()
+                videoTrack.startCapture()
+                if (!localParticipant.publishVideoTrack(videoTrack)) {
+                    videoTrack.stopCapture()
+                    videoTrack.stop()
+                }
             }
 
             coroutineScope.launch {
@@ -610,6 +623,15 @@ constructor(
                         ),
                     )
 
+                    is ParticipantEvent.LocalTrackPublicationFailed -> emitWhenConnected(
+                        RoomEvent.TrackPublicationFailed(
+                            room = this@Room,
+                            track = it.track,
+                            participant = it.participant,
+                            e = it.e,
+                        ),
+                    )
+
                     is ParticipantEvent.TrackUnpublished -> emitWhenConnected(
                         RoomEvent.TrackUnpublished(
                             room = this@Room,
@@ -655,6 +677,15 @@ constructor(
                                 it.participant,
                                 it.name,
                             ),
+                        )
+                    }
+
+                    is ParticipantEvent.StateChanged -> {
+                        RoomEvent.ParticipantStateChanged(
+                            this@Room,
+                            it.participant,
+                            it.newState,
+                            it.oldState,
                         )
                     }
 
@@ -791,6 +822,17 @@ constructor(
                         ),
                     )
 
+                    is ParticipantEvent.StateChanged -> {
+                        eventBus.postEvent(
+                            RoomEvent.ParticipantStateChanged(
+                                room = this@Room,
+                                participant = it.participant,
+                                newState = it.newState,
+                                oldState = it.oldState,
+                            ),
+                        )
+                    }
+
                     else -> {
                         // do nothing
                     }
@@ -910,6 +952,7 @@ constructor(
         name = null
         isRecording = false
         sidToIdentity.clear()
+        incomingDataStreamManager.clearOpenStreams()
     }
 
     private fun sendSyncState() {
@@ -1023,6 +1066,19 @@ constructor(
             }
         },
     )
+
+    // ----------------------------------- RpcManager ------------------------------------//
+    override suspend fun registerRpcMethod(method: String, handler: RpcHandler) {
+        localParticipant.registerRpcMethod(method, handler)
+    }
+
+    override fun unregisterRpcMethod(method: String) {
+        localParticipant.unregisterRpcMethod(method)
+    }
+
+    override suspend fun performRpc(destinationIdentity: Participant.Identity, method: String, payload: String, responseTimeout: Duration): String {
+        return localParticipant.performRpc(destinationIdentity, method, payload, responseTimeout)
+    }
 
     // ----------------------------------- RTCEngine.Listener ------------------------------------//
 
@@ -1191,6 +1247,28 @@ constructor(
 
         eventBus.postEvent(RoomEvent.DataReceived(this, data, participant, topic), coroutineScope)
         participant?.onDataReceived(data, topic)
+    }
+
+    /**
+     * @suppress
+     */
+    override fun onDataStreamPacket(dp: LivekitModels.DataPacket) {
+        when (dp.valueCase) {
+            LivekitModels.DataPacket.ValueCase.STREAM_HEADER -> {
+                incomingDataStreamManager.handleStreamHeader(dp.streamHeader, Participant.Identity(dp.participantIdentity))
+            }
+
+            LivekitModels.DataPacket.ValueCase.STREAM_CHUNK -> {
+                incomingDataStreamManager.handleDataChunk(dp.streamChunk)
+            }
+
+            LivekitModels.DataPacket.ValueCase.STREAM_TRAILER -> {
+                incomingDataStreamManager.handleStreamTrailer(dp.streamTrailer)
+            }
+
+            // Ignore other cases.
+            else -> {}
+        }
     }
 
     /**

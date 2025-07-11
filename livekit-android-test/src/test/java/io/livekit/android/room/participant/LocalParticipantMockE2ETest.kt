@@ -32,6 +32,7 @@ import io.livekit.android.room.track.VideoCaptureParameter
 import io.livekit.android.room.track.VideoCodec
 import io.livekit.android.test.MockE2ETest
 import io.livekit.android.test.assert.assertIsClassList
+import io.livekit.android.test.coroutines.toListUntilSignal
 import io.livekit.android.test.events.EventCollector
 import io.livekit.android.test.mock.MockAudioProcessingController
 import io.livekit.android.test.mock.MockEglBase
@@ -41,11 +42,14 @@ import io.livekit.android.test.mock.TestData
 import io.livekit.android.test.mock.camera.MockCameraProvider
 import io.livekit.android.test.mock.room.track.createMockLocalAudioTrack
 import io.livekit.android.test.util.toPBByteString
+import io.livekit.android.util.flow
 import io.livekit.android.util.toOkioByteString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -591,20 +595,56 @@ class LocalParticipantMockE2ETest : MockE2ETest() {
     }
 
     @Test
-    fun publishWithNoResponseCausesException() = runTest {
+    fun publishWithNoResponseReturnFalseWithoutException() = runTest {
         connect()
 
         wsFactory.unregisterSignalRequestHandler(wsFactory.defaultSignalRequestHandler)
         var didThrow = false
+        var success: Boolean? = null
         launch {
             try {
-                room.localParticipant.publishVideoTrack(createLocalTrack())
+                success = room.localParticipant.publishVideoTrack(createLocalTrack())
             } catch (e: TrackException.PublishException) {
                 didThrow = true
             }
         }
 
         coroutineRule.dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(didThrow)
+        assertTrue(!didThrow && success == false)
+    }
+
+    @Test
+    fun isMicrophoneEnabled() = runTest {
+        connect()
+
+        room.localParticipant.publishAudioTrack(
+            track = createMockLocalAudioTrack(),
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(room.localParticipant.isMicrophoneEnabled)
+    }
+
+    @Test
+    fun microphoneEnabledFlow() = runTest {
+        connect()
+
+        val signal = MutableStateFlow<Unit?>(null)
+        val job = async {
+            room.localParticipant::isMicrophoneEnabled.flow
+                .toListUntilSignal(signal)
+        }
+        room.localParticipant.publishAudioTrack(
+            track = createMockLocalAudioTrack(),
+        )
+
+        room.localParticipant.setMicrophoneEnabled(false)
+        signal.compareAndSet(null, Unit)
+        val collectedList = job.await()
+        assertEquals(3, collectedList.size)
+        assertFalse(collectedList[0])
+        assertTrue(collectedList[1])
+        assertFalse(collectedList[2])
     }
 }
