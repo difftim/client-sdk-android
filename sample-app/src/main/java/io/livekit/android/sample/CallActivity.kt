@@ -44,7 +44,7 @@ import kotlinx.parcelize.Parcelize
 import org.difft.android.libraries.denoise_filter.DenoisePluginAudioProcessor
 
 class CallActivity : AppCompatActivity() {
-    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true, vadLogs = true)
+    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true)
 
     private val viewModel: CallViewModel by viewModelByFactory {
         val args = intent.getParcelableExtra<BundleArgs>(KEY_ARGS)
