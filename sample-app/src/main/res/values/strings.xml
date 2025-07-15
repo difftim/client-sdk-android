@@ -7,4 +7,6 @@
     <string name="url">URL</string>
     <string name="save_values">Save Values</string>
     <string name="reset_values">Reset Values</string>
+    <string name="denoise_open">NS Open</string>
+    <string name="denoise_close">NS Close</string>
 </resources>

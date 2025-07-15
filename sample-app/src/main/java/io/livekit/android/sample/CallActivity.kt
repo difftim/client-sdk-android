@@ -44,7 +44,7 @@ import kotlinx.parcelize.Parcelize
 import org.difft.android.libraries.denoise_filter.DenoisePluginAudioProcessor
 
 class CallActivity : AppCompatActivity() {
-    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true)
+    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true, vadLogs = true)
 
     private val viewModel: CallViewModel by viewModelByFactory {
         val args = intent.getParcelableExtra<BundleArgs>(KEY_ARGS)
@@ -57,9 +57,9 @@ class CallActivity : AppCompatActivity() {
             e2eeKey = args.e2eeKey,
             stressTest = args.stressTest,
             application = application,
-            // audioProcessorOptions = AudioProcessorOptions(
-            //     capturePostProcessor = denoiser
-            // )
+             audioProcessorOptions = AudioProcessorOptions(
+                 capturePostProcessor = denoiser
+             )
         )
     }
     private lateinit var binding: CallActivityBinding
@@ -199,6 +199,17 @@ class CallActivity : AppCompatActivity() {
         binding.exit.setOnClickListener { finish() }
 
         // Controls row 2
+        binding.noiseCtl.setOnClickListener {
+            if (denoiser.isEnabled()) {
+                denoiser.setEnabled(false)
+                binding.noiseCtl.setText(io.livekit.android.sample.R.string.denoise_close)
+            } else {
+                denoiser.setEnabled(true)
+                binding.noiseCtl.setText(io.livekit.android.sample.R.string.denoise_open)
+            }
+
+        }
+
         binding.audioSelect.setOnClickListener {
             showSelectAudioDeviceDialog(viewModel)
         }
