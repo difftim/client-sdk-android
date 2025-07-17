@@ -11,7 +11,7 @@ class SampleApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         LiveKit.loggingLevel = LoggingLevel.VERBOSE
-        LiveKit.enableWebRTCLogging = true
+        // LiveKit.enableWebRTCLogging = true
         LiveKit.setLogToDebug(true)
 //        LKLog.registerLogCallback( object : LKLog.LogCallback {
 //            override fun onLog(level: LoggingLevel, message: String?, throwable: Throwable?) {
