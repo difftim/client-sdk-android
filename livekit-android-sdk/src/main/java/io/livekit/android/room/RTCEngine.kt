@@ -388,7 +388,7 @@ internal constructor(
         if (isClosed) {
             return
         }
-        LKLog.v { "Close - $reason" }
+        LKLog.i { "Close in - $reason" }
         isClosed = true
         reconnectingJob?.cancel()
         reconnectingJob = null
@@ -403,9 +403,11 @@ internal constructor(
         abortPendingPublishTracks()
         closeResources(reason)
         connectionState = ConnectionState.DISCONNECTED
+        LKLog.i { "Close out - $reason" }
     }
 
     private fun closeResources(reason: String) {
+        LKLog.i { "closeResources in - $reason" }
         executeBlockingOnRTCThread {
             runBlocking {
                 configurationLock.withLock {
@@ -432,6 +434,7 @@ internal constructor(
                 }
             }
         }
+        LKLog.i { "closeResources out - $reason" }
         client.close(reason = reason)
     }
 
@@ -477,7 +480,7 @@ internal constructor(
                     try {
                         url = regionUrlProvider?.getNextBestRegionUrl() ?: url
                     } catch (e: Exception) {
-                        LKLog.d(e) { "Exception while getting next best region url while reconnecting." }
+                        LKLog.d(e) { "[${retries + 1}] Exception while getting next best region url while reconnecting." }
                     }
                 }
 
@@ -487,7 +490,7 @@ internal constructor(
                 }
 
                 if (isClosed) {
-                    LKLog.v { "RTCEngine closed, aborting reconnection" }
+                    LKLog.i { "[${retries + 1}] RTCEngine closed (section 1), aborting reconnection" }
                     break
                 }
 
@@ -496,7 +499,7 @@ internal constructor(
                     startDelay = 5000
                 }
 
-                LKLog.i { "Reconnecting to signal, attempt ${retries + 1}" }
+                LKLog.i { "[${retries + 1}] Reconnecting to signal, attempt ${retries + 1}" }
                 delay(startDelay)
 
                 val isFullReconnect = when (reconnectType) {
@@ -508,7 +511,7 @@ internal constructor(
 
                 val connectOptions = connectOptions ?: ConnectOptions()
                 if (isFullReconnect) {
-                    LKLog.v { "Attempting full reconnect." }
+                    LKLog.i { "[${retries + 1}] Attempting full reconnect." }
 
                     if (!hasReconnectedOnce) {
                         hasReconnectedOnce = true
@@ -516,11 +519,11 @@ internal constructor(
                     }
                     connectionState = ConnectionState.RECONNECTING
                     try {
-                        closeResources("Full Reconnecting")
+                        closeResources("[${retries + 1}] Full Reconnecting")
                         listener?.onFullReconnecting()
                         joinImpl(url!!, token, connectOptions, lastRoomOptions ?: RoomOptions())
                     } catch (e: Exception) {
-                        LKLog.w(e) { "Error during reconnection." }
+                        LKLog.w(e) { "[${retries + 1}] Error during reconnection." }
                         // reconnect failed, retry.
                         continue
                     }
@@ -530,7 +533,7 @@ internal constructor(
                         listener?.onEngineResuming()
                     }
                     connectionState = ConnectionState.RESUMING
-                    LKLog.v { "Attempting soft reconnect." }
+                    LKLog.i { "[${retries + 1}] Attempting soft reconnect." }
                     subscriber?.prepareForIceRestart()
                     try {
                         val response = client.reconnect(url!!, token, participantSid)
@@ -542,12 +545,12 @@ internal constructor(
                         }
                         client.onReadyForResponses()
                     } catch (e: Exception) {
-                        LKLog.w(e) { "Error during reconnection." }
+                        LKLog.w(e) { "[${retries + 1}] Error during reconnection." }
                         // ws reconnect failed, retry.
                         continue
                     }
 
-                    LKLog.v { "ws reconnected, restarting ICE" }
+                    LKLog.i { "[${retries + 1}] ws reconnected, restarting ICE" }
                     listener?.onSignalConnected(!isFullReconnect)
 
                     // trigger publisher reconnect
@@ -559,7 +562,7 @@ internal constructor(
 
                 ensureActive()
                 if (isClosed) {
-                    LKLog.v { "RTCEngine closed, aborting reconnection" }
+                    LKLog.i { "[${retries + 1}] RTCEngine closed (section 2), aborting reconnection" }
                     break
                 }
 
@@ -583,7 +586,7 @@ internal constructor(
 
                 ensureActive()
                 if (isClosed) {
-                    LKLog.v { "RTCEngine closed, aborting reconnection" }
+                    LKLog.i { "[${retries + 1}] RTCEngine closed (section 3), aborting reconnection" }
                     break
                 }
 
