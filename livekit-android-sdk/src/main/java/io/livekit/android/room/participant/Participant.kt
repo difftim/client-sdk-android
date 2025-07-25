@@ -367,6 +367,25 @@ open class Participant(
         return null
     }
 
+    fun funIsCameraEnabled(): Boolean {
+        val pub = getTrackPublication(Track.Source.CAMERA)
+        return isTrackPublicationEnabled(pub)
+    }
+
+    fun funIsMicrophoneEnabled(): Boolean {
+        val pub = getTrackPublication(Track.Source.MICROPHONE)
+        return isTrackPublicationEnabled(pub)
+    }
+
+    fun funIsScreenShareEnabled(): Boolean {
+        val pub = getTrackPublication(Track.Source.SCREEN_SHARE)
+        return isTrackPublicationEnabled(pub)
+    }
+
+    private fun isTrackPublicationEnabled(pub: TrackPublication?): Boolean {
+        return !(pub?.muted ?: true)
+    }
+
     @FlowObservable
     @get:FlowObservable
     val isMicrophoneEnabled by flowDelegate(
@@ -398,7 +417,7 @@ open class Participant(
     private fun Flow<Pair<TrackPublication?, Track?>>.isTrackEnabledDetector(): Flow<Boolean> {
         return this.flatMapLatest { (pub, track) ->
             if (pub == null) {
-                flowOf(false to track)
+                flowOf(true to track)
             } else {
                 pub::muted.flow
                     .map { muted -> muted to track }
