@@ -699,7 +699,7 @@ constructor(
 
     private fun handleParticipantDisconnect(identity: Participant.Identity) {
         val newParticipants = mutableRemoteParticipants.toMutableMap()
-        val newActiveSpeakers =  mutableActiveSpeakers.toMutableList()
+        val newActiveSpeakers = mutableActiveSpeakers.toMutableList()
         val removedParticipant = newParticipants.remove(identity) ?: return
         removedParticipant.trackPublications.values.toList().forEach { publication ->
             removedParticipant.unpublishTrack(publication.sid, true)
@@ -1503,8 +1503,8 @@ constructor(
      * Initialize a [SurfaceViewRenderer] for rendering a video from this room.
      */
     // TODO(@dl): can this be moved out of Room/SDK?
-    fun initVideoRenderer(viewRenderer: SurfaceViewRenderer) {
-        viewRenderer.init(eglBase.eglBaseContext, null)
+    fun initVideoRenderer(viewRenderer: SurfaceViewRenderer, rendererEvents: RendererCommon.RendererEvents? = null) {
+        viewRenderer.init(eglBase.eglBaseContext, rendererEvents)
         viewRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
         viewRenderer.setEnableHardwareScaler(false)
     }
@@ -1513,8 +1513,8 @@ constructor(
      * Initialize a [TextureViewRenderer] for rendering a video from this room.
      */
     // TODO(@dl): can this be moved out of Room/SDK?
-    fun initVideoRenderer(viewRenderer: TextureViewRenderer) {
-        viewRenderer.init(eglBase.eglBaseContext, null)
+    fun initVideoRenderer(viewRenderer: TextureViewRenderer, rendererEvents: RendererCommon.RendererEvents? = null) {
+        viewRenderer.init(eglBase.eglBaseContext, rendererEvents)
         viewRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
         viewRenderer.setEnableHardwareScaler(false)
     }

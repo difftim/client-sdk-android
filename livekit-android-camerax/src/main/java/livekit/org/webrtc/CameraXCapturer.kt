@@ -43,6 +43,14 @@ internal class CameraXCapturer(
     @get:FlowObservable
     var currentCamera by flowDelegate<Camera?>(null)
 
+    private var cameraXSession :CameraXSession? = null
+
+    var deviceRotation: Int? = null
+        set(rotation) {
+            field = rotation
+            cameraXSession?.deviceRotation = rotation
+        }
+
     override fun createCameraSession(
         createSessionCallback: CameraSession.CreateSessionCallback,
         events: CameraSession.Events,
@@ -57,7 +65,10 @@ internal class CameraXCapturer(
             object : CameraSession.CreateSessionCallback {
                 override fun onDone(session: CameraSession) {
                     createSessionCallback.onDone(session)
-                    currentCamera = (session as CameraXSession).camera
+                    cameraXSession = (session as CameraXSession)
+                    currentCamera = cameraXSession?.camera
+
+                    cameraXSession?.deviceRotation = deviceRotation
                 }
 
                 override fun onFailure(failureType: CameraSession.FailureType, error: String) {

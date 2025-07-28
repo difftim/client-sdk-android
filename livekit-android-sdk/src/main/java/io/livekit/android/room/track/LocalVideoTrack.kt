@@ -314,6 +314,10 @@ constructor(
         sender?.setTrack(newTrack.rtcTrack, false)
     }
 
+    fun setCameraDeviceRotation(rotation: Int?) {
+        CameraCapturerUtils.setCameraDeviceRotation(context, capturer, rotation)
+    }
+
     internal fun setPublishingLayers(
         qualities: List<LivekitRtc.SubscribedQuality>,
     ) {

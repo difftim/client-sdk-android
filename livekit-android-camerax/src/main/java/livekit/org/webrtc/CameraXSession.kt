@@ -115,6 +115,8 @@ internal constructor(
                 ?: throw IllegalArgumentException("Camera ID $cameraId not found")
         }
 
+    var deviceRotation: Int? = null
+
     init {
         cameraThreadHandler.post {
             start()
@@ -328,7 +330,7 @@ internal constructor(
     }
 
     private fun getFrameOrientation(): Int {
-        var rotation = CameraSession.getDeviceOrientation(context)
+        var rotation = deviceRotation ?: CameraSession.getDeviceOrientation(context)
         if (!isCameraFrontFacing) {
             rotation = 360 - rotation
         }

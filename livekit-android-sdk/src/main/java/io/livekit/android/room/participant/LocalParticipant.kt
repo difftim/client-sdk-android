@@ -164,6 +164,12 @@ internal constructor(
         }
     }
 
+    var deviceRotation: Int? = null
+        set(rotation) {
+            field = rotation
+            defaultVideoTrack?.setCameraDeviceRotation(rotation)
+        }
+
     /**
      * Creates an audio track, recording audio through the microphone with the given [options].
      *
@@ -302,7 +308,7 @@ internal constructor(
      * @return true if the change was successful, or false if it failed.
      */
     @Throws(TrackException.PublishException::class)
-    suspend fun setMicrophoneEnabled(enabled: Boolean, publishMuted: Boolean = false): Boolean  {
+    suspend fun setMicrophoneEnabled(enabled: Boolean, publishMuted: Boolean = false): Boolean {
         return setTrackEnabled(Track.Source.MICROPHONE, enabled, publishMuted = publishMuted)
     }
 
@@ -347,7 +353,10 @@ internal constructor(
                     // Publication exists, just unmute the existing track.
                     pub.muted = false
                     if (source == Track.Source.CAMERA && pub.track is LocalVideoTrack) {
-                        (pub.track as? LocalVideoTrack)?.startCapture()
+                        (pub.track as? LocalVideoTrack)?.run {
+                            setCameraDeviceRotation(deviceRotation)
+                            startCapture()
+                        }
                     }
                     success = true
                 } else {
@@ -355,6 +364,7 @@ internal constructor(
                     when (source) {
                         Track.Source.CAMERA -> {
                             val track = getOrCreateDefaultVideoTrack()
+                            track.setCameraDeviceRotation(deviceRotation)
                             track.start()
                             track.startCapture()
                             if (!publishVideoTrack(track)) {

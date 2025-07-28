@@ -64,6 +64,10 @@ object CameraCapturerUtils {
         return getCameraProvider(context).provideEnumerator(context)
     }
 
+    fun setCameraDeviceRotation(context: Context, capturer: VideoCapturer?, rotation: Int?) {
+        getCameraProvider(context).setCameraDeviceRotation(capturer, rotation)
+    }
+
     /**
      * Create a CameraProvider based on platform capabilities.
      *
@@ -247,5 +251,9 @@ object CameraCapturerUtils {
          * If the return value of this method is false, this provider will be skipped when querying providers to use.
          */
         fun isSupported(context: Context): Boolean
+
+        fun setCameraDeviceRotation(capturer: VideoCapturer?, rotation: Int?) {
+            // do nothing
+        }
     }
 }

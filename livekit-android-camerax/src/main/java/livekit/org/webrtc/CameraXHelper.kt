@@ -79,6 +79,14 @@ class CameraXHelper {
             override fun isSupported(context: Context): Boolean {
                 return Camera2Enumerator.isSupported(context) && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.INITIALIZED)
             }
+
+            override fun setCameraDeviceRotation(capturer: VideoCapturer?, rotation: Int?) {
+                try {
+                    (capturer as CameraXCapturerWithSize).capturer.deviceRotation = rotation
+                } catch (e: Exception) {
+                    // do nothing
+                }
+            }
         }
 
         private fun getSupportedFormats(
