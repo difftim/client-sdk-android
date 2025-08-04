@@ -289,6 +289,7 @@ internal constructor(
                     // Also reconnect on publisher disconnect
                     publisherObserver.connectionChangeListener = { newState ->
                         if (newState.isDisconnected()) {
+                            LKLog.i { "publisher disconnected" }
                             reconnect()
                         }
                     }
@@ -545,7 +546,7 @@ internal constructor(
                         }
                         client.onReadyForResponses()
                     } catch (e: Exception) {
-                        LKLog.w(e) { "[${retries + 1}] Error during reconnection." }
+                        LKLog.w(e) { "[${retries + 1}] Error during reconnection. ${e.message}" }
                         // ws reconnect failed, retry.
                         continue
                     }
@@ -1026,7 +1027,7 @@ internal constructor(
             leave.action == LeaveRequest.Action.RESUME -> {
                 // resume will be triggered on close.
                 // TODO: trigger immediately.
-                fullReconnectOnNext = false
+                fullReconnectOnNext = true
             }
 
             leave.action == LeaveRequest.Action.RECONNECT ||

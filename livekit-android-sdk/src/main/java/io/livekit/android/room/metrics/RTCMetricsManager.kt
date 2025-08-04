@@ -73,7 +73,7 @@ private suspend fun collectPublisherMetrics(room: Room, rtcEngine: RTCEngine) {
                 throw it
             }
         } catch (e: Exception) {
-            LKLog.i(e) { "Error sending metrics: " }
+            LKLog.v(e) { "Error sending metrics: " }
         }
     }
 }
@@ -106,7 +106,7 @@ private suspend fun collectSubscriberMetrics(room: Room, rtcEngine: RTCEngine) {
                 throw it
             }
         } catch (e: Exception) {
-            LKLog.i(e) { "Error sending metrics: " }
+            LKLog.v(e) { "Error sending metrics: " }
         }
     }
 }
