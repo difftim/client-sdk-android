@@ -284,6 +284,7 @@ constructor(
 
     val localParticipant: LocalParticipant = localParticipantFactory.create(dynacast = false).apply {
         internalListener = this@Room
+        setRoom(this@Room)
     }
 
     private var mutableRemoteParticipants by flowDelegate(emptyMap<Participant.Identity, RemoteParticipant>())

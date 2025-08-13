@@ -83,6 +83,7 @@ import livekit.org.webrtc.RtpTransceiver.RtpTransceiverInit
 import livekit.org.webrtc.SurfaceTextureHelper
 import livekit.org.webrtc.VideoCapturer
 import livekit.org.webrtc.VideoProcessor
+import java.lang.ref.WeakReference
 import java.util.Collections
 import java.util.UUID
 import javax.inject.Named
@@ -143,6 +144,15 @@ internal constructor(
 
     private var defaultAudioTrack: LocalAudioTrack? = null
     private var defaultVideoTrack: LocalVideoTrack? = null
+
+    private var _roomRef: WeakReference<Room>? = null
+
+    internal val room: Room?
+        get() = _roomRef?.get()
+
+    internal fun setRoom(room: Room) {
+        _roomRef = WeakReference(room)
+    }
 
     /**
      * Returns the default audio track, or creates one if it doesn't exist.
@@ -465,12 +475,13 @@ internal constructor(
             track.enabled = false
         }
 
+        val enableE2ee = room?.e2eeOptions?.encryptionType != LivekitModels.Encryption.Type.NONE
         val publication = publishTrackImpl(
             track = track,
             options = options,
             requestConfig = {
                 disableDtx = !options.dtx
-                disableRed = !options.red
+                disableRed = enableE2ee || !options.red
                 addAllAudioFeatures(options.getFeaturesList())
                 source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
                 muted = !track.enabled
