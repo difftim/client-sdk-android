@@ -323,12 +323,12 @@ constructor(
         }
 
         if (reason != null) {
-            LKLog.e(t) { "websocket failure: $reason" }
+            LKLog.e(t) { "websocket failure(reason): $reason" }
             val error = Exception(reason)
             listener?.onError(error)
             joinContinuation?.cancel(error)
         } else {
-            LKLog.e(t) { "websocket failure: $response" }
+            LKLog.e(t) { "websocket failure(response): $response" }
             listener?.onError(t)
             joinContinuation?.cancel(t)
         }
@@ -747,6 +747,18 @@ constructor(
             }
 
             LivekitRtc.SignalResponse.MessageCase.REFRESH_TOKEN -> {
+                LKLog.d { "REFRESH_TOKEN: response" }
+
+                lastUrl?.let { url ->
+                    try {
+                        val tokenPattern = "($CONNECT_QUERY_TOKEN=)[^&]*".toRegex()
+                        val newUrl = url.replace(tokenPattern, "$1${response.refreshToken}")
+                        lastUrl = newUrl
+                    }catch (e: Exception) {
+                        // do nothing
+                    }
+                    LKLog.d { "REFRESH_TOKEN: response replace lastUrl" }
+                }
                 listener?.onRefreshToken(response.refreshToken)
             }
 
