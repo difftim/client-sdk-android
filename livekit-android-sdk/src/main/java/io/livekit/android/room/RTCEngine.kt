@@ -144,7 +144,7 @@ internal constructor(
     }
     internal var reconnectType: ReconnectType = ReconnectType.DEFAULT
     private var reconnectingJob: Job? = null
-    private var fullReconnectOnNext = true
+    private var fullReconnectOnNext = false
 
     private val pendingTrackResolvers: MutableMap<String, Continuation<LivekitModels.TrackInfo>> =
         mutableMapOf()
@@ -484,7 +484,7 @@ internal constructor(
             return
         }
         val forceFullReconnect = fullReconnectOnNext
-        // fullReconnectOnNext = false
+        fullReconnectOnNext = false
         val job = coroutineScope.launch {
             var hasResumedOnce = false
             var hasReconnectedOnce = false
@@ -1091,7 +1091,7 @@ internal constructor(
             leave.action == LeaveRequest.Action.RESUME -> {
                 // resume will be triggered on close.
                 // TODO: trigger immediately.
-                fullReconnectOnNext = true
+                fullReconnectOnNext = false
             }
 
             leave.action == LeaveRequest.Action.RECONNECT ||

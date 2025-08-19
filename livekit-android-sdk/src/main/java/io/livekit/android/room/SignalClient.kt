@@ -348,11 +348,11 @@ constructor(
     private fun handleWebSocketClose(reason: String, code: Int) {
         LKLog.v { "websocket closed" }
         isConnected = false
-        listener?.onClose(reason, code)
         requestFlow.resetReplayCache()
         responseFlow.resetReplayCache()
         pingJob?.cancel()
         pongJob?.cancel()
+        listener?.onClose(reason, code)
     }
 
     // ------------------------------- End WebSocket Listener ------------------------------------//
@@ -847,8 +847,12 @@ constructor(
         pingJob = null
         pongJob?.cancel()
         pongJob = null
-        currentWs?.close(code, reason)
+
+        var holdingWs =  currentWs
         currentWs = null
+        holdingWs?.close(code, reason)
+        holdingWs = null
+
         joinContinuation?.cancel()
         joinContinuation = null
         if (shouldClearQueuedRequests) {
