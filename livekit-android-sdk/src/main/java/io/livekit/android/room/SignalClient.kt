@@ -177,11 +177,17 @@ constructor(
             .url(wsUrlString)
             .build()
 
-        return suspendCancellableCoroutine {
+        var ret = suspendCancellableCoroutine {
             // Wait for join response through WebSocketListener
             joinContinuation = it
-            currentWs = websocketFactory.newWebSocket(request, this)
+            LKLog.i { "[track-reconnect] new websocket created - beg" }
+            currentWs = websocketFactory.newWebSocket(request, this@SignalClient)
+            LKLog.i { "[track-reconnect] new websocket created - end" }
         }
+
+        LKLog.i { "[track-reconnect] connect - out" }
+
+        return ret
     }
 
     private fun createConnectionParams(
@@ -299,11 +305,12 @@ constructor(
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        LKLog.v { "websocket closing" }
+        LKLog.i { "[track-reconnect] websocket closing" }
     }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         if (webSocket != currentWs) {
+            LKLog.i { "[track-reconnect] websocket failure ,ignore" }
             return
         }
         var reason: String? = null
@@ -346,7 +353,7 @@ constructor(
     }
 
     private fun handleWebSocketClose(reason: String, code: Int) {
-        LKLog.v { "websocket closed" }
+        LKLog.i { "[track-reconnect] websocket closed reason=$reason, code=$code" }
         isConnected = false
         requestFlow.resetReplayCache()
         responseFlow.resetReplayCache()
@@ -833,7 +840,7 @@ constructor(
      * Can be reused afterwards.
      */
     fun close(code: Int = CLOSE_REASON_NORMAL_CLOSURE, reason: String = "Normal Closure", shouldClearQueuedRequests: Boolean = true) {
-        LKLog.v(Exception()) { "Closing SignalClient: code = $code, reason = $reason" }
+        LKLog.i { "Closing SignalClient: code = $code, reason = $reason" }
         isConnected = false
         isReconnecting = false
         if (::coroutineScope.isInitialized) {

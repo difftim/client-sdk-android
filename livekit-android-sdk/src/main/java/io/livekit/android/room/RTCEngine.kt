@@ -222,7 +222,10 @@ internal constructor(
         if (connectionState == ConnectionState.DISCONNECTED) {
             connectionState = ConnectionState.CONNECTING
         }
+        
+        LKLog.i { "[track-reconnect] joinImpl signal connect in." }
         val joinResponse = client.join(url, token, options, roomOptions)
+        LKLog.i { "[track-reconnect] joinImpl signal connect out." }
         ensureActive()
 
         listener?.onJoinResponse(joinResponse)
@@ -238,6 +241,8 @@ internal constructor(
             negotiatePublisher()
         }
         client.onReadyForResponses()
+
+        LKLog.i { "[track-reconnect] joinImpl out." }
 
         return@coroutineScope joinResponse
     }
@@ -464,8 +469,9 @@ internal constructor(
                 }
             }
         }
-        LKLog.i { "closeResources out - $reason" }
+        LKLog.i { "closeResources out(rtc) - $reason" }
         client.close(reason = reason)
+        LKLog.i { "closeResources out - $reason" }
     }
 
     private fun abortPendingPublishTracks() {
@@ -529,7 +535,7 @@ internal constructor(
                     startDelay = 5000
                 }
 
-                LKLog.i { "[${retries + 1}] Reconnecting to signal, attempt ${retries + 1}" }
+                LKLog.i { "[${retries + 1}] Reconnecting to signal, attempt ${retries + 1}, delay ${startDelay}ms" }
                 delay(startDelay)
 
                 val isFullReconnect = when (reconnectType) {
@@ -567,7 +573,9 @@ internal constructor(
                     LKLog.i { "[${retries + 1}] Attempting soft reconnect." }
                     subscriber?.prepareForIceRestart()
                     try {
+                        LKLog.i { "[${retries + 1}] signal connect in." }
                         val response = client.reconnect(url!!, token, participantSid)
+                        LKLog.i { "[${retries + 1}] signal connect out." }
                         if (response is Either.Left) {
                             val reconnectResponse = response.value
                             val rtcConfig = makeRTCConfig(Either.Right(reconnectResponse), connectOptions)
