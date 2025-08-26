@@ -48,6 +48,7 @@ import livekit.LivekitModels.AudioTrackFeature
 import livekit.LivekitRtc
 import livekit.LivekitRtc.JoinResponse
 import livekit.LivekitRtc.ReconnectResponse
+import livekit.LivekitTemptalk
 import livekit.org.webrtc.IceCandidate
 import livekit.org.webrtc.PeerConnection
 import livekit.org.webrtc.SessionDescription
@@ -62,6 +63,11 @@ import java.util.Date
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+
+data class OpenBehavior(
+    val sendOnOpen: Boolean,
+    val payload: ByteString? = null,
+)
 
 /**
  * SignalClient to LiveKit WS servers
@@ -175,9 +181,17 @@ constructor(
 
         val request = Request.Builder()
             .url(wsUrlString)
+            .tag(
+                options.ttCallRequest?.let { req ->
+                    OpenBehavior(
+                        sendOnOpen = true,
+                        payload = LivekitTemptalk.TTCallRequest.newBuilder().build().toByteArray().toByteString(),
+                    )
+                } ?: OpenBehavior(false, null),
+            )
             .build()
 
-        var ret = suspendCancellableCoroutine {
+        val ret = suspendCancellableCoroutine {
             // Wait for join response through WebSocketListener
             joinContinuation = it
             LKLog.i { "[track-reconnect] new websocket created - beg" }
@@ -220,6 +234,10 @@ constructor(
         queryParams.add(CONNECT_QUERY_OS to clientInfo.os)
         queryParams.add(CONNECT_QUERY_OS_VERSION to clientInfo.osVersion)
         queryParams.add(CONNECT_QUERY_NETWORK_TYPE to networkInfo.getNetworkType().protoName)
+
+        if (options.ttCallRequest != null && token.isEmpty()) {
+            queryParams.add(CONNECT_QUERY_TT_VERSION to "1")
+        }
 
         return queryParams.foldIndexed("") { index, acc, pair ->
             val separator = if (index == 0) "?" else "&"
@@ -275,6 +293,15 @@ constructor(
     }
 
     // --------------------------------- WebSocket Listener --------------------------------------//
+    override fun onOpen(webSocket: WebSocket, response: Response) {
+        val tag = response.request.tag(OpenBehavior::class.java)
+        LKLog.i { "[startcall] websocket onOpen send=${tag?.sendOnOpen}" }
+
+        if (tag?.sendOnOpen == true && tag.payload != null) {
+            webSocket.send(tag.payload)
+        }
+    }
+
     override fun onMessage(webSocket: WebSocket, text: String) {
         if (webSocket != currentWs) {
             // Possibly message from old websocket, discard.
@@ -761,7 +788,7 @@ constructor(
                         val tokenPattern = "($CONNECT_QUERY_TOKEN=)[^&]*".toRegex()
                         val newUrl = url.replace(tokenPattern, "$1${response.refreshToken}")
                         lastUrl = newUrl
-                    }catch (e: Exception) {
+                    } catch (e: Exception) {
                         // do nothing
                     }
                     LKLog.d { "REFRESH_TOKEN: response replace lastUrl" }
@@ -796,7 +823,7 @@ constructor(
 
             LivekitRtc.SignalResponse.MessageCase.MESSAGE_NOT_SET,
             null,
-            -> {
+                -> {
                 LKLog.v { "empty messageCase!" }
             }
 
@@ -855,7 +882,7 @@ constructor(
         pongJob?.cancel()
         pongJob = null
 
-        var holdingWs =  currentWs
+        var holdingWs = currentWs
         currentWs = null
         holdingWs?.close(code, reason)
         holdingWs = null
@@ -906,6 +933,7 @@ constructor(
         const val CONNECT_QUERY_OS_VERSION = "os_version"
         const val CONNECT_QUERY_NETWORK_TYPE = "network"
         const val CONNECT_QUERY_PARTICIPANT_SID = "sid"
+        const val CONNECT_QUERY_TT_VERSION = "tt_version"
 
         const val SD_TYPE_ANSWER = "answer"
         const val SD_TYPE_OFFER = "offer"

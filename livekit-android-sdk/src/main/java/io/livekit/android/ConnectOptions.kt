@@ -18,6 +18,7 @@ package io.livekit.android
 
 import io.livekit.android.room.ProtocolVersion
 import io.livekit.android.room.Room
+import livekit.LivekitTemptalk
 import livekit.org.webrtc.PeerConnection
 
 /**
@@ -53,6 +54,8 @@ data class ConnectOptions(
      * the protocol version to use with the server.
      */
     val protocolVersion: ProtocolVersion = ProtocolVersion.v13,
+
+    var ttCallRequest: LivekitTemptalk.TTCallRequest? = null,
 ) {
     internal var reconnect: Boolean = false
     internal var participantSid: String? = null

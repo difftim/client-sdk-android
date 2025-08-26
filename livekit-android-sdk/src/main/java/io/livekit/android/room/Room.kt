@@ -65,6 +65,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import livekit.LivekitModels
 import livekit.LivekitRtc
+import livekit.LivekitTemptalk
 import livekit.org.webrtc.*
 import livekit.org.webrtc.audio.AudioDeviceModule
 import java.net.URI
@@ -310,6 +311,11 @@ constructor(
     @get:FlowObservable
     val activeSpeakers: List<Participant>
         get() = mutableActiveSpeakers
+
+    @FlowObservable
+    @get:FlowObservable
+    var ttCallResp: LivekitTemptalk.TTCallResponse? = null
+        private set
 
     private var hasLostConnectivity: Boolean = false
     private var connectOptions: ConnectOptions = ConnectOptions()
@@ -579,7 +585,7 @@ constructor(
      * @suppress
      */
     override fun onJoinResponse(response: LivekitRtc.JoinResponse) {
-        LKLog.i { "Connected to server, server version: ${response.serverVersion}, client version: ${Version.CLIENT_VERSION}" }
+        LKLog.i { "[startcall] Connected to server, server version: ${response.serverVersion}, client version: ${Version.CLIENT_VERSION}" }
 
         if (response.room.sid != null) {
             sid = Sid(response.room.sid)
@@ -588,6 +594,28 @@ constructor(
         }
         name = response.room.name
         metadata = response.room.metadata
+
+        if (response.hasTtCallResponse() && response.ttCallResponse != null) {
+            ttCallResp = response.ttCallResponse
+        }
+
+        ttCallResp?.let { resp ->
+            val encryptor = e2eeOptions?.ttEncryptor
+            val manager = e2eeManager
+            if (encryptor != null && manager != null) {
+                LKLog.i { "[startcall] Attempting to decrypt call key with publicKey=${resp.publicKey}, emk=${resp.emk}" }
+                val mk = encryptor.decryptCallKey(resp.publicKey, resp.emk)
+                if (mk != null) {
+                    LKLog.i { "[startcall] Decrypted call key successfully, setting shared key." }
+                    manager.keyProvider().setSharedKey(mk)
+                    LKLog.i { "[startcall] setSharedKey completed." }
+                } else {
+                    LKLog.w { "[startcall] Failed to decrypt call key, shared key not set." }
+                }
+            } else {
+                LKLog.w { "[startcall] Encryptor or manager is null, cannot set shared key." }
+            }
+        }
 
         if (e2eeManager != null && !response.sifTrailer.isEmpty) {
             e2eeManager!!.keyProvider().setSifTrailer(response.sifTrailer.toByteArray())
@@ -1064,7 +1092,7 @@ constructor(
                 LKLog.i { "network connection available, reconnecting" }
                 hasLostConnectivity = false
                 reconnect()
-                
+
             }
         },
     )

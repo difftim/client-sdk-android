@@ -90,6 +90,7 @@ constructor(
     }
 
     public fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
+        LKLog.w { "[startcall] addSubscribedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
         if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
             LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
@@ -118,6 +119,7 @@ constructor(
     }
 
     public fun removeSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
+        LKLog.w { "[startcall] removeSubscribedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
         var trackId = publication.sid
         var participantId = participant.identity
         var frameCryptor = frameCryptors.get(trackId to participantId)
@@ -129,6 +131,7 @@ constructor(
     }
 
     public fun addPublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
+        LKLog.w { "[startcall] addPublishedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
         if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
             LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
@@ -158,6 +161,7 @@ constructor(
     }
 
     public fun removePublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
+        LKLog.w { "[startcall] removePublishedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
         var trackId = publication.sid
         var participantId = participant.identity
         var frameCryptor = frameCryptors.get(trackId to participantId)
