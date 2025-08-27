@@ -600,6 +600,11 @@ constructor(
         }
 
         ttCallResp?.let { resp ->
+            if (resp.hasToken() && !resp.token.isEmpty()) {
+                LKLog.i { "[startcall] onRefreshToken by joinResponse" }
+                engine.onRefreshToken(resp.token)
+            }
+
             val encryptor = e2eeOptions?.ttEncryptor
             val manager = e2eeManager
             if (encryptor != null && manager != null) {

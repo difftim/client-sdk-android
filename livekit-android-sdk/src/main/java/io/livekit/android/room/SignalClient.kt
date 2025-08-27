@@ -179,16 +179,21 @@ constructor(
         lastOptions = options
         lastRoomOptions = roomOptions
 
+        val tag = if (options.ttCallRequest != null && token.isEmpty()) {
+            options.ttCallRequest?.let { req ->
+                val request = LivekitRtc.SignalRequest.newBuilder().setTtCallRequest(req).build()
+                OpenBehavior(
+                    sendOnOpen = true,
+                    payload = request.toByteArray().toByteString(),
+                )
+            } ?: OpenBehavior(false, null)
+        } else {
+            OpenBehavior(false, null)
+        }
+
         val request = Request.Builder()
             .url(wsUrlString)
-            .tag(
-                options.ttCallRequest?.let { req ->
-                    OpenBehavior(
-                        sendOnOpen = true,
-                        payload = LivekitTemptalk.TTCallRequest.newBuilder().build().toByteArray().toByteString(),
-                    )
-                } ?: OpenBehavior(false, null),
-            )
+            .tag(OpenBehavior::class.java, tag)
             .build()
 
         val ret = suspendCancellableCoroutine {
