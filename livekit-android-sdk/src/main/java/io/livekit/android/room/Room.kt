@@ -314,7 +314,7 @@ constructor(
 
     @FlowObservable
     @get:FlowObservable
-    var ttCallResp: LivekitTemptalk.TTCallResponse? = null
+    var ttCallResp: LivekitTemptalk.TTCallResponse? by flowDelegate(null)
         private set
 
     private var hasLostConnectivity: Boolean = false
@@ -600,7 +600,7 @@ constructor(
         }
 
         ttCallResp?.let { resp ->
-            if (resp.hasToken() && !resp.token.isEmpty()) {
+            if (!resp.token.isEmpty()) {
                 LKLog.i { "[startcall] onRefreshToken by joinResponse" }
                 engine.onRefreshToken(resp.token)
             }
