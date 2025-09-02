@@ -127,6 +127,8 @@ constructor(
 
     var connectionState: ConnectionState = ConnectionState.DISCONNECTED
 
+    private var lastConnectionException :Exception? = null
+
     /**
      * @throws Exception if fails to connect.
      */
@@ -345,25 +347,33 @@ constructor(
             LKLog.i { "[track-reconnect] websocket failure ,ignore" }
             return
         }
-        var reason: String? = null
+        var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
         try {
-            lastUrl?.let {
-                val validationUrl = it.toHttpUrl().replaceFirst("/rtc?", "/rtc/validate?")
-                val request = Request.Builder().url(validationUrl).build()
-                val resp = okHttpClient.newCall(request).execute()
-                val body = resp.body
-                if (!resp.isSuccessful) {
-                    reason = body?.string()
+            if (exceptionError == null) {
+                lastUrl?.let {
+                    val validationUrl = it.toHttpUrl().replaceFirst("/rtc?", "/rtc/validate?")
+                    val request = Request.Builder().url(validationUrl).build()
+                    val resp = okHttpClient.newCall(request).execute()
+                    val body = resp.body
+                    if (!resp.isSuccessful) {
+                        val reason = body?.string()
+                        exceptionError = if (resp.code == 401) {
+                            RoomException.NoAuthException(reason)
+                        } else {
+                            Exception(reason)
+                        }
+                    }
+
+                    body?.close()
                 }
-                body?.close()
             }
         } catch (e: Throwable) {
             LKLog.e(e) { "failed to validate connection" }
         }
 
-        if (reason != null) {
-            LKLog.e(t) { "websocket failure(reason): $reason" }
-            val error = Exception(reason)
+        val error = exceptionError
+        if (error != null) {
+            LKLog.e(t) { "websocket failure(reason): $error" }
             listener?.onError(error)
             joinContinuation?.cancel(error)
         } else {
@@ -378,7 +388,7 @@ constructor(
             // onClosing/onClosed will not be called after onFailure.
             // Handle websocket closure here.
             handleWebSocketClose(
-                reason = reason ?: response?.toString() ?: t.localizedMessage ?: "websocket failure",
+                reason = error?.message ?: response?.toString() ?: t.localizedMessage ?: "websocket failure",
                 code = response?.code ?: CLOSE_REASON_WEBSOCKET_FAILURE,
             )
         }
@@ -665,6 +675,14 @@ constructor(
 
             // Only handle certain messages if not connected.
             if (response.hasJoin()) {
+                response.join.ttCallResponse?.let { tt ->
+                    if (tt.base.status != 0) {
+                        // server will close after joinResponse
+                        lastConnectionException = RoomException.StartCallException(tt.base.reason, null, tt.base.status)
+                        return
+                    }
+                }
+
                 isConnected = true
                 startRequestQueue()
                 pingTimeoutDurationMillis = response.join.pingTimeout.toLong() * 1000

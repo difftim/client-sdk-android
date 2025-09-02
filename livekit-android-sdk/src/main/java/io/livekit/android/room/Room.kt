@@ -599,7 +599,7 @@ constructor(
             ttCallResp = response.ttCallResponse
         }
 
-        ttCallResp?.let { resp ->
+        ttCallResp?.body?.let { resp ->
             if (!resp.token.isEmpty()) {
                 LKLog.i { "[startcall] onRefreshToken by joinResponse" }
                 engine.onRefreshToken(resp.token)
@@ -1590,6 +1590,10 @@ constructor(
 sealed class RoomException(message: String? = null, cause: Throwable? = null) :
     Exception(message, cause) {
     class ConnectException(message: String? = null, cause: Throwable? = null) :
+        RoomException(message, cause)
+    class NoAuthException(message: String? = null, cause: Throwable? = null) :
+        RoomException(message, cause)
+    class StartCallException(message: String? = null, cause: Throwable? = null, val statusCode: Int? = null) :
         RoomException(message, cause)
 }
 
