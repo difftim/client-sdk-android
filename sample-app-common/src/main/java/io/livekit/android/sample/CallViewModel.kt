@@ -182,7 +182,7 @@ class CallViewModel(
             this.startCall = startCall
         }.build()
 
-        return ConnectOptions(ttCallRequest = ttCallRequest)
+        return ConnectOptions(ttCallRequest = ttCallRequest, userAgent = param.userAgent)
     }
 
     private fun getRoomOptions(): RoomOptions {
