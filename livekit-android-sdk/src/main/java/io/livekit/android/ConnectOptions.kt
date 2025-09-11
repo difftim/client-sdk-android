@@ -56,6 +56,8 @@ data class ConnectOptions(
     val protocolVersion: ProtocolVersion = ProtocolVersion.v13,
 
     var ttCallRequest: LivekitTemptalk.TTCallRequest? = null,
+
+    var userAgent: String? = null,
 ) {
     internal var reconnect: Boolean = false
     internal var participantSid: String? = null

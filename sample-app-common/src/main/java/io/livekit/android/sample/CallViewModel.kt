@@ -114,6 +114,7 @@ data class StartCallParam(
 data class MergeStartCallParam(
     val startCall: StartCallParam,
     val token: String,
+    val userAgent: String,
 )
 
 @OptIn(ExperimentalCamera2Interop::class)
@@ -177,6 +178,7 @@ class CallViewModel(
         }.build()
         val ttCallRequest = LivekitTemptalk.TTCallRequest.newBuilder().apply {
             token = param.token
+            userAgent = param.userAgent
             this.startCall = startCall
         }.build()
 

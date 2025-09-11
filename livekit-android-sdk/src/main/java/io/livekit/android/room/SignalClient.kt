@@ -193,10 +193,17 @@ constructor(
             OpenBehavior(false, null)
         }
 
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(wsUrlString)
             .tag(OpenBehavior::class.java, tag)
-            .build()
+
+        options.userAgent?.let { it ->
+            if (!it.isEmpty()) {
+                requestBuilder.header("User-Agent", it)
+            }
+        }
+
+        val request = requestBuilder.build()
 
         val ret = suspendCancellableCoroutine {
             // Wait for join response through WebSocketListener
