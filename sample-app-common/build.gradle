@@ -2,6 +2,7 @@ plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'kotlin-parcelize'
+    id 'kotlinx-serialization'
 }
 
 def getDefaultUrl() {
@@ -12,8 +13,39 @@ def getDefaultToken() {
     return hasProperty('livekitSampleToken') ? livekitSampleToken : ""
 }
 
-final url = getDefaultUrl()
-final token = getDefaultToken()
+def getUseMergeStartCall() {
+    return hasProperty('livekitUseMergeStartCall') ? livekitUseMergeStartCall.toBoolean() : false
+}
+
+def getMergeStartCallParam() {
+    return hasProperty('livekitMergeStartCallParam') ? livekitMergeStartCallParam.replace('"', '\\"') : ""
+}
+
+def getEnableDeviceRotation() {
+    return hasProperty('livekitEnableDeviceRotation') ? livekitEnableDeviceRotation.toBoolean() : false
+}
+
+def getOpenMicrophone() {
+    return hasProperty('livekitOpenMicrophone') ? livekitOpenMicrophone.toBoolean() : false
+}
+
+def getMicrophonePublishMute() {
+    return hasProperty('livekitMicrophonePublishMute') ? livekitMicrophonePublishMute.toBoolean() : false
+}
+
+def getOpenCamera() {
+    return hasProperty('livekitOpenCamera') ? livekitOpenCamera.toBoolean() : false
+}
+
+
+final url = getDefaultUrl().strip()
+final token = getDefaultToken().strip()
+final useMergeStartCall = getUseMergeStartCall()
+final mergeStartCallParam = getMergeStartCallParam().strip()
+final enableDeviceRotation = getEnableDeviceRotation()
+final openMicrophone = getOpenMicrophone()
+final microphonePublishMute = getMicrophonePublishMute()
+final openCamera = getOpenCamera()
 
 android {
     namespace "io.livekit.android.sample.common"
@@ -34,11 +66,23 @@ android {
 
             buildConfigField "String", "DEFAULT_URL", "\"$url\""
             buildConfigField "String", "DEFAULT_TOKEN", "\"$token\""
+            buildConfigField "boolean", "USE_MERGE_START_CALL", useMergeStartCall.toString()
+            buildConfigField "String", "MERGE_START_CALL_PARAM", "\"$mergeStartCallParam\""
+            buildConfigField "boolean", "ENABLE_DEVICE_ROTATION", enableDeviceRotation.toString()
+            buildConfigField "boolean", "OPEN_MICROPHONE", openMicrophone.toString()
+            buildConfigField "boolean", "MICROPHONE_PUBLISH_MUTE", microphonePublishMute.toString()
+            buildConfigField "boolean", "OPEN_CAMERA", openCamera.toString()
         }
 
         debug {
             buildConfigField "String", "DEFAULT_URL", "\"$url\""
             buildConfigField "String", "DEFAULT_TOKEN", "\"$token\""
+            buildConfigField "boolean", "USE_MERGE_START_CALL", useMergeStartCall.toString()
+            buildConfigField "String", "MERGE_START_CALL_PARAM", "\"$mergeStartCallParam\""
+            buildConfigField "boolean", "ENABLE_DEVICE_ROTATION", enableDeviceRotation.toString()
+            buildConfigField "boolean", "OPEN_MICROPHONE", openMicrophone.toString()
+            buildConfigField "boolean", "MICROPHONE_PUBLISH_MUTE", microphonePublishMute.toString()
+            buildConfigField "boolean", "OPEN_CAMERA", openCamera.toString()
         }
     }
     buildFeatures {
@@ -71,6 +115,7 @@ dependencies {
     api libs.androidx.lifecycle.process
     api libs.protobuf.javalite
     api libs.androidx.preference.ktx
+    api libs.kotlinx.serialization.json
     // debugImplementation because LeakCanary should only run in debug builds.
     debugImplementation libs.leakcanary.android
 

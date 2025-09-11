@@ -30,6 +30,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.github.ajalt.timberkt.Timber
 import io.livekit.android.AudioOptions
+import io.livekit.android.ConnectOptions
 import io.livekit.android.LiveKit
 import io.livekit.android.LiveKitOverrides
 import io.livekit.android.RoomOptions
@@ -42,12 +43,17 @@ import io.livekit.android.room.Room
 import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.participant.RemoteParticipant
+import io.livekit.android.room.participant.VideoTrackPublishDefaults
 import io.livekit.android.room.track.CameraPosition
 import io.livekit.android.room.track.LocalScreencastVideoTrack
 import io.livekit.android.room.track.LocalVideoTrack
+import io.livekit.android.room.track.LocalVideoTrackOptions
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.VideoCodec
+import io.livekit.android.room.track.VideoEncoding
 import io.livekit.android.room.track.screencapture.ScreenCaptureParams
 import io.livekit.android.room.track.video.CameraCapturerUtils
+import io.livekit.android.sample.common.BuildConfig
 import io.livekit.android.sample.model.StressTest
 import io.livekit.android.sample.service.ForegroundService
 import io.livekit.android.util.LKLog
@@ -63,7 +69,52 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import livekit.LivekitTemptalk
 import livekit.org.webrtc.CameraXHelper
+
+@kotlinx.serialization.Serializable
+data class CipherMessageParam(
+    val content: String,
+    val registrationId: Int,
+    val uid: String,
+)
+
+@kotlinx.serialization.Serializable
+data class EncInfoParam(
+    val emk: String,
+    val uid: String,
+)
+
+@kotlinx.serialization.Serializable
+data class NotificationArgsParam(
+    val collapseId: String,
+)
+
+@kotlinx.serialization.Serializable
+data class NotificationParam(
+    val type: Int,
+    val args: NotificationArgsParam? = null,
+)
+
+@kotlinx.serialization.Serializable
+data class StartCallParam(
+    val type: String,
+    val version: Int,
+    val timestamp: Long,
+    val conversationId: String,
+    val publicKey: String,
+    val cipherMessages: List<CipherMessageParam>,
+    val encInfos: List<EncInfoParam>,
+    val notification: NotificationParam,
+)
+
+@kotlinx.serialization.Serializable
+data class MergeStartCallParam(
+    val startCall: StartCallParam,
+    val token: String,
+)
 
 @OptIn(ExperimentalCamera2Interop::class)
 class CallViewModel(
@@ -81,8 +132,55 @@ class CallViewModel(
         if (e2ee && e2eeKey != null) {
             e2eeOptions = E2EEOptions()
         }
-        e2eeOptions?.keyProvider?.setSharedKey(e2eeKey!!)
+        if (!BuildConfig.USE_MERGE_START_CALL) {
+            e2eeOptions?.keyProvider?.setSharedKey(e2eeKey!!)
+        }
         return e2eeOptions
+    }
+
+    private fun getConnectOptions(): ConnectOptions {
+        if (!BuildConfig.USE_MERGE_START_CALL || BuildConfig.MERGE_START_CALL_PARAM.isNullOrBlank()) {
+            return ConnectOptions()
+        }
+        val param = Json.decodeFromString<MergeStartCallParam>(BuildConfig.MERGE_START_CALL_PARAM)
+
+        val cipherMessages = param.startCall.cipherMessages.map {
+            LivekitTemptalk.TTCipherMessages.newBuilder().apply {
+                content = it.content
+                registrationId = it.registrationId
+                uid = it.uid
+            }.build()
+        }
+        val encInfos = param.startCall.encInfos.map {
+            LivekitTemptalk.TTEncInfo.newBuilder().apply {
+                emk = it.emk
+                uid = it.uid
+            }.build()
+        }
+        val notification = LivekitTemptalk.TTNotification.newBuilder().apply {
+            type = param.startCall.notification.type
+            args = param.startCall.notification.args?.let { a ->
+                LivekitTemptalk.TTNotification.TTArgs.newBuilder().apply {
+                    collapseId = a.collapseId
+                }.build()
+            }
+        }.build()
+        val startCall = LivekitTemptalk.TTStartCall.newBuilder().apply {
+            type = param.startCall.type
+            version = param.startCall.version
+            timestamp = param.startCall.timestamp
+            conversationId = param.startCall.conversationId
+            publicKey = param.startCall.publicKey
+            addAllCipherMessages(cipherMessages)
+            addAllEncInfos(encInfos)
+            this.notification = notification
+        }.build()
+        val ttCallRequest = LivekitTemptalk.TTCallRequest.newBuilder().apply {
+            token = param.token
+            this.startCall = startCall
+        }.build()
+
+        return ConnectOptions(ttCallRequest = ttCallRequest)
     }
 
     private fun getRoomOptions(): RoomOptions {
@@ -90,6 +188,15 @@ class CallViewModel(
             adaptiveStream = true,
             dynacast = true,
             e2eeOptions = getE2EEOptions(),
+            videoTrackCaptureDefaults = LocalVideoTrackOptions(
+                deviceId = "",
+                position = CameraPosition.FRONT,
+                isPortrait = true,
+            ),
+            videoTrackPublishDefaults = VideoTrackPublishDefaults(
+                videoEncoding = VideoEncoding(3_000_000, 30),
+                videoCodec = VideoCodec.VP8.codecName,
+            ),
         )
     }
 
@@ -102,6 +209,8 @@ class CallViewModel(
             ),
         ),
     )
+
+    private var curretnRotation: Int? = null
 
     private var cameraProvider: CameraCapturerUtils.CameraProvider? = null
     val audioHandler = room.audioHandler as AudioSwitchHandler
@@ -122,6 +231,7 @@ class CallViewModel(
     val primarySpeaker: StateFlow<Participant?> = mutablePrimarySpeaker
 
     val activeSpeakers = room::activeSpeakers.flow
+    val ttCallResp = room::ttCallResp.flow
 
     private var localScreencastTrack: LocalScreencastVideoTrack? = null
 
@@ -171,6 +281,14 @@ class CallViewModel(
                     }
             }
 
+            if (BuildConfig.USE_MERGE_START_CALL) {
+                launch {
+                    ttCallResp.collect { response ->
+                        LKLog.i { "[startcall]: response=$response" }
+                    }
+                }
+            }
+
             // Handle room events.
             launch {
                 room.events.collect {
@@ -179,11 +297,44 @@ class CallViewModel(
                         is RoomEvent.DataReceived -> {
                             val identity = it.participant?.identity ?: "server"
                             val message = it.data.toString(Charsets.UTF_8)
-                            mutableDataReceived.emit("$identity: $message")
+                            LKLog.i { "DataReceived $identity: $message" }
+                            // mutableDataReceived.emit("$identity: $message")
+                        }
+
+                        is RoomEvent.Disconnected -> {
+                            LKLog.e(it.error) { "Disconnected reason:${it.reason}" }
+                        }
+
+                        is RoomEvent.Reconnecting -> {
+                            LKLog.i { "Reconnecting" }
+                        }
+
+                        is RoomEvent.Reconnected -> {
+                            LKLog.i { "Reconnected" }
+                        }
+
+                        is RoomEvent.ParticipantDisconnected -> {
+                            LKLog.i { "ParticipantDisconnected: ${it.participant.identity} ${it.participant.sid}" }
+                        }
+
+                        is RoomEvent.ParticipantConnected -> {
+                            LKLog.i { "ParticipantConnected: ${it.participant.identity} ${it.participant.sid}" }
+                        }
+
+                        is RoomEvent.TrackMuted -> {
+                            LKLog.i { "TrackMuted: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]" }
+                        }
+
+                        is RoomEvent.TrackUnmuted -> {
+                            LKLog.i { "TrackUnmuted: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]" }
+                        }
+
+                        is RoomEvent.TrackUnpublished -> {
+                            LKLog.i { "TrackUnpublished: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] [screen:${it.participant.funIsScreenShareEnabled()}]" }
                         }
 
                         else -> {
-                            Timber.e { "Room event: $it" }
+                            Timber.i { "Room event: $it" }
                         }
                     }
                 }
@@ -240,10 +391,16 @@ class CallViewModel(
 
     private suspend fun connectToRoom() {
         try {
+            var tokenVer = if (BuildConfig.USE_MERGE_START_CALL) {
+                ""
+            } else {
+                token
+            }
             room.e2eeOptions = getE2EEOptions()
             room.connect(
                 url = url,
-                token = token,
+                token = tokenVer,
+                options = getConnectOptions(),
             )
 
             mutableEnhancedNsEnabled.postValue(room.audioProcessorIsEnabled)
@@ -251,9 +408,18 @@ class CallViewModel(
 
             // Create and publish audio/video tracks
             val localParticipant = room.localParticipant
-            localParticipant.setMicrophoneEnabled(true)
 
-            localParticipant.setCameraEnabled(true)
+            if (BuildConfig.OPEN_MICROPHONE) {
+                localParticipant.setMicrophoneEnabled(true, publishMuted = BuildConfig.MICROPHONE_PUBLISH_MUTE)
+            }
+
+            if (BuildConfig.ENABLE_DEVICE_ROTATION) {
+                localParticipant.deviceRotation = curretnRotation
+            }
+
+            if (BuildConfig.OPEN_CAMERA) {
+                localParticipant.setCameraEnabled(true)
+            }
 
             // Update the speaker
             handlePrimarySpeaker(emptyList(), emptyList(), room)
@@ -349,17 +515,30 @@ class CallViewModel(
     }
 
     fun flipCamera() {
-        val videoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)
-            ?.track as? LocalVideoTrack
-            ?: return
+        if (!BuildConfig.ENABLE_DEVICE_ROTATION) {
+            val videoTrack = room.localParticipant.getTrackPublication(Track.Source.CAMERA)
+                ?.track as? LocalVideoTrack
+                ?: return
 
-        val newPosition = when (videoTrack.options.position) {
-            CameraPosition.FRONT -> CameraPosition.BACK
-            CameraPosition.BACK -> CameraPosition.FRONT
-            else -> null
+            val newPosition = when (videoTrack.options.position) {
+                CameraPosition.FRONT -> CameraPosition.BACK
+                CameraPosition.BACK -> CameraPosition.FRONT
+                else -> null
+            }
+
+            videoTrack.switchCamera(position = newPosition)
+        } else {
+            var rotation: Int?
+            if (curretnRotation == 90) {
+                rotation = null
+            } else {
+                rotation = 90
+            }
+
+            curretnRotation = rotation
+
+            room.localParticipant.deviceRotation = rotation
         }
-
-        videoTrack.switchCamera(position = newPosition)
     }
 
     fun dismissError() {
