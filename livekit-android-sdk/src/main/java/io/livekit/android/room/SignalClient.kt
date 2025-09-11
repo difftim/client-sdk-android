@@ -203,6 +203,10 @@ constructor(
             joinContinuation = it
             LKLog.i { "[track-reconnect] new websocket created - beg" }
             currentWs = websocketFactory.newWebSocket(request, this@SignalClient)
+            if (currentWs == null) {
+                LKLog.w { "[track-reconnect] new websocket created - failed" }
+                joinContinuation?.cancel(Exception("create websocket failed"))
+            }
             LKLog.i { "[track-reconnect] new websocket created - end" }
         }
 
@@ -344,7 +348,7 @@ constructor(
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         if (webSocket != currentWs) {
-            LKLog.i { "[track-reconnect] websocket failure ,ignore" }
+            LKLog.i { "[track-reconnect] websocket failure ,ignore currentWs=$currentWs, webSocket=$webSocket, response=$response" }
             return
         }
         var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
