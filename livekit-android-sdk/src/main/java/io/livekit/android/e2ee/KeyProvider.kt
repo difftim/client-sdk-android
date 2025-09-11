@@ -20,14 +20,13 @@ import io.livekit.android.util.LKLog
 import livekit.org.webrtc.FrameCryptorFactory
 import livekit.org.webrtc.FrameCryptorKeyProvider
 
-class KeyInfo
-constructor(var participantId: String, var keyIndex: Int, var key: ByteArray) {
+class KeyInfo(var participantId: String, var keyIndex: Int, var key: ByteArray) {
     override fun toString(): String {
         return "KeyInfo(participantId='$participantId', keyIndex=$keyIndex)"
     }
 }
 
-public interface KeyProvider {
+interface KeyProvider {
     fun setSharedKey(key: String, keyIndex: Int? = 0): Boolean
     fun setSharedKey(key: ByteArray, keyIndex: Int? = 0): Boolean
     fun ratchetSharedKey(keyIndex: Int? = 0): ByteArray
@@ -43,17 +42,30 @@ public interface KeyProvider {
     var enableSharedKey: Boolean
 }
 
-class BaseKeyProvider
-constructor(
-    private var ratchetSalt: String = defaultRatchetSalt,
-    private var uncryptedMagicBytes: String = defaultMagicBytes,
-    private var ratchetWindowSize: Int = defaultRatchetWindowSize,
+class BaseKeyProvider(
+    ratchetSalt: String = defaultRatchetSalt,
+    uncryptedMagicBytes: String = defaultMagicBytes,
+    ratchetWindowSize: Int = defaultRatchetWindowSize,
     override var enableSharedKey: Boolean = true,
-    private var failureTolerance: Int = defaultFailureTolerance,
-    private var keyRingSize: Int = defaultKeyRingSize,
-    private var discardFrameWhenCryptorNotReady: Boolean = defaultDiscardFrameWhenCryptorNotReady,
+    failureTolerance: Int = defaultFailureTolerance,
+    keyRingSize: Int = defaultKeyRingSize,
+    discardFrameWhenCryptorNotReady: Boolean = defaultDiscardFrameWhenCryptorNotReady,
 ) : KeyProvider {
+    override val rtcKeyProvider: FrameCryptorKeyProvider
+
     private var keys: MutableMap<String, MutableMap<Int, ByteArray>> = mutableMapOf()
+
+    init {
+        this.rtcKeyProvider = FrameCryptorFactory.createFrameCryptorKeyProvider(
+            enableSharedKey,
+            ratchetSalt.toByteArray(),
+            ratchetWindowSize,
+            uncryptedMagicBytes.toByteArray(),
+            failureTolerance,
+            keyRingSize,
+            discardFrameWhenCryptorNotReady,
+        )
+    }
     override fun setSharedKey(key: String, keyIndex: Int?): Boolean {
         return rtcKeyProvider.setSharedKey(keyIndex ?: 0, key.toByteArray())
     }
@@ -119,19 +131,5 @@ constructor(
 
     override fun setSifTrailer(trailer: ByteArray) {
         rtcKeyProvider.setSifTrailer(trailer)
-    }
-
-    override val rtcKeyProvider: FrameCryptorKeyProvider
-
-    init {
-        this.rtcKeyProvider = FrameCryptorFactory.createFrameCryptorKeyProvider(
-            enableSharedKey,
-            ratchetSalt.toByteArray(),
-            ratchetWindowSize,
-            uncryptedMagicBytes.toByteArray(),
-            failureTolerance,
-            keyRingSize,
-            discardFrameWhenCryptorNotReady,
-        )
     }
 }

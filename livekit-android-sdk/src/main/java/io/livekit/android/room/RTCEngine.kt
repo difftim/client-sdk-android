@@ -48,6 +48,7 @@ import io.livekit.android.webrtc.RTCStatsGetter
 import io.livekit.android.webrtc.copy
 import io.livekit.android.webrtc.isConnected
 import io.livekit.android.webrtc.isDisconnected
+import io.livekit.android.webrtc.peerconnection.RTCThreadToken
 import io.livekit.android.webrtc.peerconnection.executeBlockingOnRTCThread
 import io.livekit.android.webrtc.peerconnection.launchBlockingOnRTCThread
 import io.livekit.android.webrtc.toProtoSessionDescription
@@ -107,6 +108,7 @@ internal constructor(
     private val pctFactory: PeerConnectionTransport.Factory,
     @Named(InjectionNames.DISPATCHER_IO)
     private val ioDispatcher: CoroutineDispatcher,
+    private val rtcThreadToken: RTCThreadToken,
 ) : SignalClient.Listener {
     internal var listener: Listener? = null
 
@@ -160,8 +162,8 @@ internal constructor(
     internal val serverVersion: Semver?
         get() = client.serverVersion
 
-    private val publisherObserver = PublisherTransportObserver(this, client)
-    private val subscriberObserver = SubscriberTransportObserver(this, client)
+    private val publisherObserver = PublisherTransportObserver(this, client, rtcThreadToken)
+    private val subscriberObserver = SubscriberTransportObserver(this, client, rtcThreadToken)
 
     internal var publisher: PeerConnectionTransport? = null
     private var subscriber: PeerConnectionTransport? = null
@@ -248,7 +250,7 @@ internal constructor(
     }
 
     private suspend fun configure(joinResponse: JoinResponse, connectOptions: ConnectOptions) {
-        launchBlockingOnRTCThread {
+        launchBlockingOnRTCThread(rtcThreadToken) {
             configurationLock.withCheckLock(
                 {
                     ensureActive()
@@ -322,7 +324,7 @@ internal constructor(
                         reliableInit,
                     ).also { dataChannel ->
 
-                        val dataChannelManager = DataChannelManager(dataChannel, DataChannelObserver(dataChannel))
+                        val dataChannelManager = DataChannelManager(dataChannel, DataChannelObserver(dataChannel), rtcThreadToken)
                         reliableDataChannelManager = dataChannelManager
                         dataChannel.registerObserver(dataChannelManager)
                         reliableBufferedAmountJob?.cancel()
@@ -345,7 +347,7 @@ internal constructor(
                         LOSSY_DATA_CHANNEL_LABEL,
                         lossyInit,
                     ).also { dataChannel ->
-                        lossyDataChannelManager = DataChannelManager(dataChannel, DataChannelObserver(dataChannel))
+                        lossyDataChannelManager = DataChannelManager(dataChannel, DataChannelObserver(dataChannel), rtcThreadToken)
                         dataChannel.registerObserver(lossyDataChannelManager)
                     }
                 }
@@ -441,7 +443,7 @@ internal constructor(
 
     private fun closeResources(reason: String) {
         LKLog.i { "closeResources in - $reason" }
-        executeBlockingOnRTCThread {
+        executeBlockingOnRTCThread(rtcThreadToken) {
             runBlocking {
                 configurationLock.withLock {
                     publisherObserver.connectionChangeListener = null
@@ -591,7 +593,7 @@ internal constructor(
                     }
 
                     LKLog.i { "[${retries + 1}] ws reconnected, restarting ICE" }
-                    listener?.onSignalConnected(!isFullReconnect)
+                    listener?.onSignalConnected(true)
 
                     // trigger publisher reconnect
                     // only restart publisher if it's needed
@@ -846,11 +848,9 @@ internal constructor(
 
         val rtcConfig = connectOptions.rtcConfig?.copy()?.apply {
             val mergedServers = iceServers.toMutableList()
-            if (connectOptions.iceServers != null) {
-                connectOptions.iceServers.forEach { server ->
-                    if (!mergedServers.contains(server)) {
-                        mergedServers.add(server)
-                    }
+            connectOptions.iceServers?.forEach { server ->
+                if (!mergedServers.contains(server)) {
+                    mergedServers.add(server)
                 }
             }
 
@@ -1104,9 +1104,7 @@ internal constructor(
         abortPendingPublishTracks()
 
         if (leave.hasRegions()) {
-            regionUrlProvider?.let {
-                it.setServerReportedRegions(RegionSettings.fromProto(leave.regions))
-            }
+            regionUrlProvider?.setServerReportedRegions(RegionSettings.fromProto(leave.regions))
         }
 
         when {
@@ -1258,8 +1256,7 @@ internal constructor(
             }
         }
 
-        val dataChannelInfos = LivekitModels.DataPacket.Kind.values()
-            .toList()
+        val dataChannelInfos = LivekitModels.DataPacket.Kind.entries
             .filterNot { it == LivekitModels.DataPacket.Kind.UNRECOGNIZED }
             .mapNotNull { kind -> dataChannelForKind(kind) }
             .map { dataChannel ->

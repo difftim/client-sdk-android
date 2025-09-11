@@ -59,7 +59,7 @@ constructor(
         this.peerConnectionFactory = peerConnectionFactory
     }
 
-    public fun keyProvider(): KeyProvider {
+    fun keyProvider(): KeyProvider {
         return this.keyProvider
     }
 
@@ -71,16 +71,16 @@ constructor(
         this.enabled = true
         this.room = room
         this.emitEvent = emitEvent
-        this.room?.localParticipant?.trackPublications?.forEach() { item ->
+        this.room?.localParticipant?.trackPublications?.forEach { item ->
             var participant = this.room!!.localParticipant
             var publication = item.value
             if (publication.track != null) {
                 addPublishedTrack(publication.track!!, publication, participant, room)
             }
         }
-        this.room?.remoteParticipants?.forEach() { item ->
+        this.room?.remoteParticipants?.forEach { item ->
             var participant = item.value
-            participant.trackPublications.forEach() { item ->
+            participant.trackPublications.forEach { item ->
                 var publication = item.value
                 if (publication.track != null) {
                     addSubscribedTrack(publication.track!!, publication, participant, room)
@@ -89,8 +89,7 @@ constructor(
         }
     }
 
-    public fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
-        LKLog.w { "[startcall] addSubscribedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
+    fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
         if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
             LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
@@ -118,8 +117,7 @@ constructor(
         }
     }
 
-    public fun removeSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
-        LKLog.w { "[startcall] removeSubscribedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
+    fun removeSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
         var trackId = publication.sid
         var participantId = participant.identity
         var frameCryptor = frameCryptors.get(trackId to participantId)
@@ -130,13 +128,12 @@ constructor(
         }
     }
 
-    public fun addPublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
-        LKLog.w { "[startcall] addPublishedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
+    fun addPublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
         if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
             LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
         }
-
+        
         var rtpSender: RtpSender? = when (publication.track!!) {
             is LocalAudioTrack -> (publication.track!! as LocalAudioTrack)?.sender
             is LocalVideoTrack -> (publication.track!! as LocalVideoTrack)?.sender
@@ -160,8 +157,7 @@ constructor(
         }
     }
 
-    public fun removePublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
-        LKLog.w { "[startcall] removePublishedTrack: encryptionType ${publication.trackInfo?.encryption} ${publication.sid}" }
+    fun removePublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
         var trackId = publication.sid
         var participantId = participant.identity
         var frameCryptor = frameCryptors.get(trackId to participantId)
@@ -217,7 +213,7 @@ constructor(
      * Enable or disable E2EE
      * @param enabled
      */
-    public fun enableE2EE(enabled: Boolean) {
+    fun enableE2EE(enabled: Boolean) {
         this.enabled = enabled
         for (item in frameCryptors.entries) {
             var frameCryptor = item.value

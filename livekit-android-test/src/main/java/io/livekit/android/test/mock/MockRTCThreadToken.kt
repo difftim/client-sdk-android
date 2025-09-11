@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-package io.livekit.android.videoencodedecode.ui.theme
+package io.livekit.android.test.mock
 
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Shapes
-import androidx.compose.ui.unit.dp
+import io.livekit.android.webrtc.peerconnection.RTCThreadToken
 
-val Shapes = Shapes(
-    small = RoundedCornerShape(4.dp),
-    medium = RoundedCornerShape(4.dp),
-    large = RoundedCornerShape(0.dp)
-)
+class MockRTCThreadToken : RTCThreadToken {
+    override val isDisposed: Boolean
+        get() = false
+}

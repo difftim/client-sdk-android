@@ -335,7 +335,7 @@ internal constructor(
      * @param screenCaptureParams When enabling the screenshare, this must be provided with
      * [ScreenCaptureParams.mediaProjectionPermissionResultData] containing resultData returned from launching
      * [MediaProjectionManager.createScreenCaptureIntent()](https://developer.android.com/reference/android/media/projection/MediaProjectionManager#createScreenCaptureIntent()).
-     * @throws IllegalArgumentException if attempting to enable screenshare without [mediaProjectionPermissionResultData]
+     * @throws IllegalArgumentException if attempting to enable screenshare without [screenCaptureParams]
      * @see Room.screenShareTrackCaptureDefaults
      * @see Room.screenShareTrackPublishDefaults
      * @see ScreenAudioCapturer
@@ -453,6 +453,7 @@ internal constructor(
      *
      * @param track The track to publish.
      * @param options The publish options to use, or [Room.audioTrackPublishDefaults] if none is passed.
+     * @return true if the track published successfully
      */
     suspend fun publishAudioTrack(
         track: LocalAudioTrack,
@@ -463,6 +464,11 @@ internal constructor(
         publishListener: PublishListener? = null,
         publishMuted: Boolean = false,
     ): Boolean {
+        if (track.isDisposed) {
+            LKLog.w { "Attempting to publish a disposed track, ignoring." }
+            return false
+        }
+
         val encodings = listOf(
             RtpParameters.Encoding(null, true, null).apply {
                 if (options.audioBitrate != null && options.audioBitrate > 0) {
@@ -470,26 +476,31 @@ internal constructor(
                 }
             },
         )
-
+        
         if (publishMuted) {
             track.stopPrewarm()
             track.enabled = false
         }
 
         val enableE2ee = room?.e2eeOptions?.encryptionType != LivekitModels.Encryption.Type.NONE
-        val publication = publishTrackImpl(
-            track = track,
-            options = options,
-            requestConfig = {
-                disableDtx = !options.dtx
-                disableRed = enableE2ee || !options.red
-                addAllAudioFeatures(options.getFeaturesList())
-                source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
-                muted = !track.enabled
-            },
-            encodings = encodings,
-            publishListener = publishListener,
-        )
+
+        var publication: LocalTrackPublication? = null
+        try {
+            publication = publishTrackImpl(
+                track = track,
+                options = options,
+                requestConfig = {
+                    disableDtx = !options.dtx
+                    disableRed = enableE2ee || !options.red
+                    addAllAudioFeatures(options.getFeaturesList())
+                    source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
+                },
+                encodings = encodings,
+                publishListener = publishListener,
+            )
+        } catch (e: TrackException.PublishException) {
+            LKLog.e(e) { "Error thrown when publishing track:" }
+        }
 
         if (publication != null) {
             val job = scope.launch {
@@ -508,6 +519,7 @@ internal constructor(
      *
      * @param track The track to publish.
      * @param options The publish options to use, or [Room.videoTrackPublishDefaults] if none is passed.
+     * @return true if the track published successfully
      */
     suspend fun publishVideoTrack(
         track: LocalVideoTrack,
@@ -518,6 +530,17 @@ internal constructor(
         publishListener: PublishListener? = null,
     ): Boolean {
         @Suppress("NAME_SHADOWING") var options = options
+
+        if (track.isDisposed) {
+            LKLog.w { "Attempting to publish a disposed track, ignoring." }
+            return false
+        }
+
+        val rtcTrackId = track.withRTCTrack(null) { id() }
+        if (rtcTrackId == null) {
+            LKLog.w { "Attempting to publish a disposed track, ignoring." }
+            return false
+        }
 
         synchronized(enabledPublishVideoCodecs) {
             if (enabledPublishVideoCodecs.isNotEmpty()) {
@@ -552,40 +575,47 @@ internal constructor(
         val videoLayers =
             EncodingUtils.videoLayersFromEncodings(track.dimensions.width, track.dimensions.height, encodings, isSVC)
 
-        return publishTrackImpl(
-            track = track,
-            options = options,
-            requestConfig = {
-                width = track.dimensions.width
-                height = track.dimensions.height
-                source = options.source?.toProto() ?: if (track.options.isScreencast) {
-                    LivekitModels.TrackSource.SCREEN_SHARE
-                } else {
-                    LivekitModels.TrackSource.CAMERA
-                }
-                addAllLayers(videoLayers)
+        var publication: LocalTrackPublication? = null
+        try {
+            publication = publishTrackImpl(
+                track = track,
+                options = options,
+                requestConfig = {
+                    width = track.dimensions.width
+                    height = track.dimensions.height
+                    source = options.source?.toProto() ?: if (track.options.isScreencast) {
+                        LivekitModels.TrackSource.SCREEN_SHARE
+                    } else {
+                        LivekitModels.TrackSource.CAMERA
+                    }
+                    addAllLayers(videoLayers)
 
-                addSimulcastCodecs(
-                    with(SimulcastCodec.newBuilder()) {
-                        codec = options.videoCodec
-                        cid = track.rtcTrack.id()
-                        build()
-                    },
-                )
-                // set up backup codec
-                if (options.backupCodec?.codec != null && options.videoCodec != options.backupCodec?.codec) {
                     addSimulcastCodecs(
                         with(SimulcastCodec.newBuilder()) {
-                            codec = options.backupCodec!!.codec
-                            cid = ""
+                            codec = options.videoCodec
+                            cid = rtcTrackId
                             build()
                         },
                     )
-                }
-            },
-            encodings = encodings,
-            publishListener = publishListener,
-        ) != null
+                    // set up backup codec
+                    if (options.backupCodec?.codec != null && options.videoCodec != options.backupCodec?.codec) {
+                        addSimulcastCodecs(
+                            with(SimulcastCodec.newBuilder()) {
+                                codec = options.backupCodec!!.codec
+                                cid = ""
+                                build()
+                            },
+                        )
+                    }
+                },
+                encodings = encodings,
+                publishListener = publishListener,
+            )
+        } catch (e: TrackException.PublishException) {
+            LKLog.e(e) { "Error thrown when publishing track:" }
+        }
+
+        return publication != null
     }
 
     private fun hasPermissionsToPublish(source: Track.Source): Boolean {
@@ -611,6 +641,7 @@ internal constructor(
      * @throws TrackException.PublishException thrown when the publish fails. see [TrackException.PublishException.message] for details.
      * @return true if the track publish was successful.
      */
+    @Throws(TrackException.PublishException::class)
     private suspend fun publishTrackImpl(
         track: Track,
         options: TrackPublishOptions,
@@ -618,6 +649,11 @@ internal constructor(
         encodings: List<RtpParameters.Encoding> = emptyList(),
         publishListener: PublishListener? = null,
     ): LocalTrackPublication? {
+        if (track.isDisposed) {
+            LKLog.w { "Attempting to publish a disposed track, ignoring." }
+            return null
+        }
+
         fun onPublishFailure(e: TrackException.PublishException, triggerEvent: Boolean = true) {
             publishListener?.onPublishFailure(e)
             if (triggerEvent) {
@@ -1058,7 +1094,7 @@ internal constructor(
      * @see RpcInvocationData
      * @see performRpc
      */
-    override suspend fun registerRpcMethod(
+    override fun registerRpcMethod(
         method: String,
         handler: RpcHandler,
     ) {
@@ -1194,6 +1230,7 @@ internal constructor(
                     continuation.cancel(RpcError.BuiltinRpcError.RESPONSE_TIMEOUT.create())
                 }
             }
+            responseTimeoutJob // workaround for lint marking this unused. used in cleanup()
 
             pendingResponses[requestId] = PendingRpcResponse(
                 participantIdentity = destinationIdentity,

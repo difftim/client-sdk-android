@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 LiveKit, Inc.
+ * Copyright 2023-2025 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,9 +29,8 @@ interface TTEncryptor {
     fun decryptCallKey(eKey: String, eMKey: String): ByteArray?
 }
 
-class E2EEOptions
-constructor(
-    keyProvider: KeyProvider = BaseKeyProvider(
+class E2EEOptions(
+    var keyProvider: KeyProvider = BaseKeyProvider(
         defaultRatchetSalt,
         defaultMagicBytes,
         defaultRatchetWindowSize,
@@ -43,12 +42,10 @@ constructor(
     encryptionType: Encryption.Type = Encryption.Type.GCM,
     ttEncryptor: TTEncryptor? = null,
 ) {
-    var keyProvider: KeyProvider
     var encryptionType: Encryption.Type = Encryption.Type.NONE
     var ttEncryptor: TTEncryptor? = null
 
     init {
-        this.keyProvider = keyProvider
         this.encryptionType = encryptionType
         this.ttEncryptor = ttEncryptor
     }
