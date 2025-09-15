@@ -494,6 +494,7 @@ internal constructor(
                     disableRed = enableE2ee || !options.red
                     addAllAudioFeatures(options.getFeaturesList())
                     source = options.source?.toProto() ?: LivekitModels.TrackSource.MICROPHONE
+                    muted = !track.enabled
                 },
                 encodings = encodings,
                 publishListener = publishListener,
