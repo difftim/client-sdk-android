@@ -210,6 +210,7 @@ constructor(
 
         val requestBuilder = Request.Builder()
             .url(wsUrlString)
+            .addHeader("Authorization", "Bearer $token")
             .tag(OpenBehavior::class.java, tag)
 
         options.userAgent?.let { it ->
@@ -255,7 +256,6 @@ constructor(
         roomOptions: RoomOptions,
     ): String {
         val queryParams = mutableListOf<Pair<String, String>>()
-        queryParams.add(CONNECT_QUERY_TOKEN to token)
         queryParams.add(CONNECT_QUERY_PROTOCOL to options.protocolVersion.value.toString())
 
         if (options.reconnect) {
@@ -393,7 +393,7 @@ constructor(
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         val stale = !isActiveWebSocket(webSocket)
         LKLog.i { "[track-reconnect] websocket failure \"${if (stale) "ignored (stale) " else ""}\" currentWs=$currentWs, webSocket=$webSocket, response=$response" }
-        
+
         if (stale) {
             wsAttemptIds.remove(webSocket)
             return
@@ -401,9 +401,17 @@ constructor(
         var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
         try {
             if (exceptionError == null) {
+                val lastToken = webSocket.request().header("Authorization")
                 lastUrl?.let {
                     val validationUrl = it.toHttpUrl().replaceFirst("/rtc?", "/rtc/validate?")
-                    val request = Request.Builder().url(validationUrl).build()
+                    val request = Request.Builder()
+                        .url(validationUrl)
+                        .apply {
+                            if (lastToken != null) {
+                                addHeader("Authorization", lastToken)
+                            }
+                        }
+                        .build()
                     val resp = okHttpClient.newCall(request).execute()
                     val body = resp.body
                     if (!resp.isSuccessful) {
