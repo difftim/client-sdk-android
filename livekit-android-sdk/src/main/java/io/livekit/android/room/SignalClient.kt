@@ -95,6 +95,7 @@ constructor(
     var listener: Listener? = null
     internal var serverVersion: Semver? = null
     private var lastUrl: String? = null
+    private var lastToken: String? = null
     private var lastOptions: ConnectOptions? = null
     private var lastRoomOptions: RoomOptions? = null
 
@@ -188,6 +189,7 @@ constructor(
 
         coroutineScope = CloseableCoroutineScope(SupervisorJob() + ioDispatcher)
         lastUrl = wsUrlString
+        lastToken = token
         lastOptions = options
         lastRoomOptions = roomOptions
 
@@ -237,8 +239,10 @@ constructor(
             // Timeout: close and propagate
             val ws = currentWs
             if (ws != null && isActiveWebSocket(ws)) {
+                LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId, close websocket=$ws" }
                 wsAttemptIds.remove(ws)
-                ws.close(CLOSE_REASON_WEBSOCKET_FAILURE, "Connect timeout")
+                // Immediately close
+                ws.cancel()
             }
             LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId" }
             throw t
@@ -401,14 +405,13 @@ constructor(
         var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
         try {
             if (exceptionError == null) {
-                val lastToken = webSocket.request().header("Authorization")
                 lastUrl?.let {
                     val validationUrl = it.toHttpUrl().replaceFirst("/rtc?", "/rtc/validate?")
                     val request = Request.Builder()
                         .url(validationUrl)
                         .apply {
                             if (lastToken != null) {
-                                addHeader("Authorization", lastToken)
+                                addHeader("Authorization", "Bearer $lastToken")
                             }
                         }
                         .build()
@@ -873,17 +876,8 @@ constructor(
 
             LivekitRtc.SignalResponse.MessageCase.REFRESH_TOKEN -> {
                 LKLog.d { "REFRESH_TOKEN: response" }
+                lastToken = response.refreshToken
 
-                lastUrl?.let { url ->
-                    try {
-                        val tokenPattern = "($CONNECT_QUERY_TOKEN=)[^&]*".toRegex()
-                        val newUrl = url.replace(tokenPattern, "$1${response.refreshToken}")
-                        lastUrl = newUrl
-                    } catch (e: Exception) {
-                        // do nothing
-                    }
-                    LKLog.d { "REFRESH_TOKEN: response replace lastUrl" }
-                }
                 listener?.onRefreshToken(response.refreshToken)
             }
 
@@ -943,7 +937,7 @@ constructor(
         pongJob = coroutineScope.launch {
             delay(pingTimeoutDurationMillis)
             LKLog.d { "Ping timeout reached for ping sent at $timestamp." }
-            currentWs?.close(CLOSE_REASON_PING_TIMEOUT, "Ping timeout")
+            currentWs?.cancel()
         }
     }
 
@@ -975,8 +969,11 @@ constructor(
 
         var holdingWs = currentWs
         currentWs = null
-        holdingWs?.let { wsAttemptIds.remove(it) }
-        holdingWs?.close(code, reason)
+
+        holdingWs?.let {
+            wsAttemptIds.remove(it)
+            it.cancel()
+        }
         holdingWs = null
 
         joinContinuation?.cancel()
@@ -986,6 +983,7 @@ constructor(
         }
         responseFlow.resetReplayCache()
         lastUrl = null
+        lastToken = null
         lastOptions = null
         lastRoomOptions = null
         serverVersion = null
@@ -1013,7 +1011,6 @@ constructor(
     }
 
     companion object {
-        const val CONNECT_QUERY_TOKEN = "access_token"
         const val CONNECT_QUERY_RECONNECT = "reconnect"
         const val CONNECT_QUERY_AUTOSUBSCRIBE = "auto_subscribe"
         const val CONNECT_QUERY_ADAPTIVE_STREAM = "adaptive_stream"

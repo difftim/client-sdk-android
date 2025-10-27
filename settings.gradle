@@ -18,7 +18,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven { url 'https://jitpack.io' }
         maven {
-            url = uri("https://raw.githubusercontent.com/difftim/AndroidRepo/update_webrtc/")
+            url = uri("https://raw.githubusercontent.com/difftim/AndroidRepo/main/")
         }
     }
 }
