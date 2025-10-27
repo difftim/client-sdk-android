@@ -47,9 +47,7 @@ dependencies {
 
     implementation "androidx.camera:camera-view:${camerax_version}"
     implementation "androidx.camera:camera-extensions:${camerax_version}"
-    implementation fileTree(dir: 'libs', include: ['*.jar','*.aar'])
-    // 添加对本地 .aar 文件的依赖
-    implementation files('libs/denoise-filter-release.aar')
+    implementation(libs.denoise.filter)
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation libs.coroutines.lib
     implementation libs.appcompat

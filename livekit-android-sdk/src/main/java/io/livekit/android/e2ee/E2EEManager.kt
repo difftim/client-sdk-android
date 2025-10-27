@@ -133,7 +133,7 @@ constructor(
             LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
         }
-        
+
         var rtpSender: RtpSender? = when (publication.track!!) {
             is LocalAudioTrack -> (publication.track!! as LocalAudioTrack)?.sender
             is LocalVideoTrack -> (publication.track!! as LocalVideoTrack)?.sender

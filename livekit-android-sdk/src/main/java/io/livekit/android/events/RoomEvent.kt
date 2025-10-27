@@ -300,7 +300,7 @@ enum class DisconnectReason {
     SIP_TRUNK_FAILURE,
     CONNECTION_TIMEOUT,
     MEDIA_FAILURE,
-    
+
     // This is used when the reconnection attempt failed
     RECONNECT_FAILED,
 }

@@ -56,7 +56,6 @@ import livekit.org.webrtc.VideoDecoderFactory
 import livekit.org.webrtc.VideoEncoderFactory
 import livekit.org.webrtc.audio.AudioDeviceModule
 import livekit.org.webrtc.audio.JavaAudioDeviceModule
-import timber.log.Timber
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -107,6 +106,13 @@ internal object RTCModule {
                         PeerConnectionFactory.InitializationOptions
                             .builder(appContext)
                             .setNativeLibraryName("lkjingle_peerconnection_so")
+                            .setFieldTrials(
+                                "WebRTC-Audio-Engine-DefaultEnabledAEC/Enabled/" +
+                                    "WebRTC-Audio-Engine-DefaultEnabledAGC/Enabled/" +
+                                    "WebRTC-Audio-Engine-DefaultEnabledNS/Enabled/" +
+                                    "WebRTC-Audio-Engine-DefaultEnabledHPF/Enabled/" +
+                                    "WebRTC-Audio-Engine-Android-AecMobile/Disabled/",
+                            )
                             .setInjectableLogger(
                                 { s, severity, s2 ->
                                     if (!LiveKit.enableWebRTCLogging) {

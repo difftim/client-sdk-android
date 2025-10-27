@@ -141,10 +141,10 @@ constructor(
         }
     }
 
-   @Synchronized
-   fun negotiateSync(m: MediaConstraints?) {
-           negotiate.invoke(m)
-   }
+    @Synchronized
+    fun negotiateSync(m: MediaConstraints?) {
+        negotiate.invoke(m)
+    }
 
     private suspend fun createAndSendOffer(constraints: MediaConstraints = MediaConstraints()) {
         if (listener == null) {

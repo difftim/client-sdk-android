@@ -224,7 +224,7 @@ internal constructor(
         if (connectionState == ConnectionState.DISCONNECTED) {
             connectionState = ConnectionState.CONNECTING
         }
-        
+
         LKLog.i { "[track-reconnect] joinImpl signal connect in." }
         val joinResponse = client.join(url, token, options, roomOptions)
         LKLog.i { "[track-reconnect] joinImpl signal connect out." }

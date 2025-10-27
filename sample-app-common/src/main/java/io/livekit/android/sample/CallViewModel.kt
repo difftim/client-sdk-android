@@ -29,6 +29,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.github.ajalt.timberkt.Timber
+import com.twilio.audioswitch.AudioDevice
 import io.livekit.android.AudioOptions
 import io.livekit.android.ConnectOptions
 import io.livekit.android.LiveKit
@@ -45,6 +46,7 @@ import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.participant.RemoteParticipant
 import io.livekit.android.room.participant.VideoTrackPublishDefaults
 import io.livekit.android.room.track.CameraPosition
+import io.livekit.android.room.track.LocalAudioTrackOptions
 import io.livekit.android.room.track.LocalScreencastVideoTrack
 import io.livekit.android.room.track.LocalVideoTrack
 import io.livekit.android.room.track.LocalVideoTrackOptions
@@ -190,6 +192,13 @@ class CallViewModel(
             adaptiveStream = true,
             dynacast = true,
             e2eeOptions = getE2EEOptions(),
+            audioTrackCaptureDefaults = LocalAudioTrackOptions(
+                noiseSuppression = true,
+                echoCancellation = true,
+                autoGainControl = true,
+                highPassFilter = true,
+                typingNoiseDetection = true,
+            ),
             videoTrackCaptureDefaults = LocalVideoTrackOptions(
                 deviceId = "",
                 position = CameraPosition.FRONT,
@@ -207,6 +216,15 @@ class CallViewModel(
         options = getRoomOptions(),
         overrides = LiveKitOverrides(
             audioOptions = AudioOptions(
+                audioHandler = AudioSwitchHandler(context = application).apply {
+                    loggingEnabled = BuildConfig.DEBUG
+                    preferredDeviceList = listOf(
+                        AudioDevice.BluetoothHeadset::class.java,
+                        AudioDevice.WiredHeadset::class.java,
+                        AudioDevice.Speakerphone::class.java,
+                        AudioDevice.Earpiece::class.java
+                    )
+                },
                 audioProcessorOptions = audioProcessorOptions,
             ),
         ),
@@ -398,7 +416,7 @@ class CallViewModel(
             } else {
                 token
             }
-            room.e2eeOptions = getE2EEOptions()
+            // room.e2eeOptions = getE2EEOptions()
             room.connect(
                 url = url,
                 token = tokenVer,

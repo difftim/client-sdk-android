@@ -476,7 +476,7 @@ internal constructor(
                 }
             },
         )
-        
+
         if (publishMuted) {
             track.stopPrewarm()
             track.enabled = false

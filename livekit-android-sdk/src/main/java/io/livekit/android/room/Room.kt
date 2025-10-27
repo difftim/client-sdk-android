@@ -1135,7 +1135,6 @@ constructor(
                 LKLog.i { "network connection available, reconnecting" }
                 hasLostConnectivity = false
                 reconnect()
-
             }
         },
     )

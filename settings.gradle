@@ -17,6 +17,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
+        maven {
+            url = uri("https://raw.githubusercontent.com/difftim/AndroidRepo/update_webrtc/")
+        }
     }
 }
 include ':sample-app', ':sample-app-compose', ':livekit-android-sdk'
