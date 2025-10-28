@@ -634,11 +634,13 @@ constructor(
         name = response.room.name
         metadata = response.room.metadata
 
+        var tmpTtCallResp: LivekitTemptalk.TTCallResponse? = null
         if (response.hasTtCallResponse() && response.ttCallResponse != null) {
             ttCallResp = response.ttCallResponse
+            tmpTtCallResp = response.ttCallResponse
         }
 
-        ttCallResp?.body?.let { resp ->
+        tmpTtCallResp?.body?.let { resp ->
             if (!resp.token.isEmpty()) {
                 LKLog.i { "[startcall] onRefreshToken by joinResponse" }
                 engine.onRefreshToken(resp.token)

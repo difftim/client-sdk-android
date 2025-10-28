@@ -58,7 +58,7 @@ dependencies {
   implementation "io.livekit:livekit-android-track-processors:$livekit_version"
 
   // Snapshots of the latest development version are available at:
-  // implementation "org.difft.android.libraries:livekit-android:2.21.1-SNAPSHOT"
+  // implementation "org.difft.android.libraries:livekit-android:2.20.3.5-SNAPSHOT"
 }
 ```
 
