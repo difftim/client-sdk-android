@@ -41,6 +41,8 @@ import io.livekit.android.e2ee.E2EEOptions
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import io.livekit.android.room.Room
+import io.livekit.android.room.datastream.StreamTextOptions
+import io.livekit.android.room.datastream.incoming.TextStreamReceiver
 import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.participant.RemoteParticipant
@@ -283,6 +285,17 @@ class CallViewModel(
             }
         }
 
+        // Handling text streams
+        room.registerTextStreamHandler(
+            topic = "lk.chat",
+            handler = { receiver: TextStreamReceiver, identity: Participant.Identity ->
+                viewModelScope.launch {
+                    val message = receiver.readAll().joinToString(separator = "")
+                    mutableDataReceived.emit("$identity: $message")
+                }
+            },
+        )
+
         viewModelScope.launch(Dispatchers.Default) {
             // Collect any errors.
             launch {
@@ -315,6 +328,7 @@ class CallViewModel(
                     when (it) {
                         is RoomEvent.FailedToConnect -> mutableError.value = it.error
                         is RoomEvent.DataReceived -> {
+                            // Handling basic data packets.
                             val identity = it.participant?.identity ?: "server"
                             val message = it.data.toString(Charsets.UTF_8)
                             LKLog.i { "DataReceived $identity: $message" }
@@ -567,7 +581,7 @@ class CallViewModel(
 
     fun sendData(message: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            room.localParticipant.publishData(message.toByteArray(Charsets.UTF_8))
+            room.localParticipant.sendText(message, StreamTextOptions(topic = "lk.chat"))
         }
     }
 
