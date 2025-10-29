@@ -130,7 +130,7 @@ internal object RTCModule {
                                     }
 
                                     LKLog.log(loggingLevel) {
-                                        "$s2: $s"
+                                        "[webrtc] $s2: $s".trimEnd('\r', '\n')
                                     }
                                 },
                                 when (LiveKit.loggingLevelWebRTC) {

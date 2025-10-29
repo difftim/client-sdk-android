@@ -27,6 +27,7 @@ import io.livekit.android.room.track.RemoteTrackPublication
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.util.FlowObservable
+import io.livekit.android.util.LKLog
 import io.livekit.android.util.diffMapChange
 import io.livekit.android.util.flow
 import io.livekit.android.util.flowDelegate
@@ -428,7 +429,13 @@ open class Participant(
     /**
      * @suppress
      */
-    open fun updateFromInfo(info: LivekitModels.ParticipantInfo) {
+    open fun updateFromInfo(info: LivekitModels.ParticipantInfo): Boolean {
+        participantInfo?.let { current ->
+            if (current.sid == info.sid && current.version > info.version) {
+                return false
+            }
+        }
+
         sid = Sid(info.sid)
         identity = Identity(info.identity)
         participantInfo = info
@@ -440,6 +447,8 @@ open class Participant(
         }
         attributes = info.attributesMap
         state = State.fromProto(info.state)
+
+        return true
     }
 
     override fun equals(other: Any?): Boolean {

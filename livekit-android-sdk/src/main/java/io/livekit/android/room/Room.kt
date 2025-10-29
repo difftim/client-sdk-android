@@ -819,6 +819,11 @@ constructor(
     ): RemoteParticipant {
         var participant = remoteParticipants[identity]
         if (participant != null) {
+            val wasUpdated = participant.updateFromInfo(info)
+            if (wasUpdated) {
+                sidToIdentity[participant.sid] = identity
+            }
+
             return participant
         }
 
@@ -1190,12 +1195,18 @@ constructor(
             return
         }
 
-        var (participantSid, streamId) = unpackStreamId(streams.first().id)
+        val (participantSid, streamId) = unpackStreamId(streams.first().id)
         var trackSid = track.id()
 
         if (streamId != null && streamId.startsWith("TR")) {
             trackSid = streamId
         }
+
+        if (Participant.Sid(participantSid) == localParticipant.sid) {
+            LKLog.e { "Tried to create RemoteParticipant for local participant. sid: $participantSid" }
+            return;
+        }
+
         val participant = getParticipantBySid(participantSid) as? RemoteParticipant
 
         if (participant == null) {

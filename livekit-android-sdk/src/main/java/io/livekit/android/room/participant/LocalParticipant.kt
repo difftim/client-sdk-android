@@ -1438,7 +1438,7 @@ internal constructor(
      * @suppress
      */
     @VisibleForTesting
-    override fun updateFromInfo(info: LivekitModels.ParticipantInfo) {
+    override fun updateFromInfo(info: LivekitModels.ParticipantInfo): Boolean {
         super.updateFromInfo(info)
 
         // detect tracks that have mute status mismatched on server
@@ -1449,6 +1449,8 @@ internal constructor(
                 engine.updateMuteStatus(sid.value, localMuted)
             }
         }
+
+        return true
     }
 
     /**

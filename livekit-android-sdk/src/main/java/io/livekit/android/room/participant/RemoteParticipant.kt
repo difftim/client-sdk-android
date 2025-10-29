@@ -102,8 +102,10 @@ class RemoteParticipant(
     /**
      * @suppress
      */
-    override fun updateFromInfo(info: LivekitModels.ParticipantInfo) {
-        super.updateFromInfo(info)
+    override fun updateFromInfo(info: LivekitModels.ParticipantInfo): Boolean {
+        if (!super.updateFromInfo(info)) {
+            return false
+        }
 
         val validTrackPublication = mutableMapOf<String, RemoteTrackPublication>()
         val newTrackPublications = mutableMapOf<String, RemoteTrackPublication>()
@@ -138,6 +140,8 @@ class RemoteParticipant(
             val publication = trackPublications[invalidKey] ?: continue
             unpublishTrack(publication.sid, true)
         }
+
+        return true
     }
 
     /**
