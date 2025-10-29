@@ -18,6 +18,7 @@ package io.livekit.android
 
 import android.app.Application
 import android.content.Context
+import io.livekit.android.LiveKit.loggingLevel
 import io.livekit.android.dagger.DaggerLiveKitComponent
 import io.livekit.android.dagger.RTCModule
 import io.livekit.android.dagger.create

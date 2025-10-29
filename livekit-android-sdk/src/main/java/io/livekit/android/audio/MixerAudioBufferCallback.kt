@@ -56,7 +56,7 @@ abstract class MixerAudioBufferCallback : AudioBufferCallback {
 
                 AudioFormat.ENCODING_PCM_16BIT,
                 AudioFormat.ENCODING_DEFAULT,
-                -> {
+                    -> {
                     mixShortBuffers(original = buffer.asShortBuffer(), customAudioBuffer.asShortBuffer())
                 }
 

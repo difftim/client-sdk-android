@@ -23,5 +23,5 @@ class ScreenCaptureParams(
     val mediaProjectionPermissionResultData: Intent,
     val notificationId: Int? = null,
     val notification: Notification? = null,
-    val onStop: (() -> Unit)? = null
+    val onStop: (() -> Unit)? = null,
 )

@@ -28,7 +28,7 @@ import java.lang.ref.WeakReference
 open class TrackPublication(
     info: LivekitModels.TrackInfo,
     track: Track?,
-    participant: Participant
+    participant: Participant,
 ) {
 
     @FlowObservable

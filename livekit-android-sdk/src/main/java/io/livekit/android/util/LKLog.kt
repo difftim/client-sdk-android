@@ -16,7 +16,13 @@
 
 package io.livekit.android.util
 
-import io.livekit.android.util.LoggingLevel.*
+import io.livekit.android.util.LoggingLevel.DEBUG
+import io.livekit.android.util.LoggingLevel.ERROR
+import io.livekit.android.util.LoggingLevel.INFO
+import io.livekit.android.util.LoggingLevel.OFF
+import io.livekit.android.util.LoggingLevel.VERBOSE
+import io.livekit.android.util.LoggingLevel.WARN
+import io.livekit.android.util.LoggingLevel.WTF
 import timber.log.Timber
 
 /*

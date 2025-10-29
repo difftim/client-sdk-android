@@ -92,6 +92,7 @@ class RemoteParticipant(
             info: LivekitModels.ParticipantInfo,
         ): RemoteParticipant
     }
+
     private val coroutineScope = CloseableCoroutineScope(defaultDispatcher + SupervisorJob())
 
     /**

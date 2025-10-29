@@ -26,6 +26,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import io.livekit.android.room.track.screencapture.ScreenCaptureService.Companion.DEFAULT_NOTIFICATION_ID
 
 /**
  * A foreground service is required for screen capture on API level Q (29) and up.

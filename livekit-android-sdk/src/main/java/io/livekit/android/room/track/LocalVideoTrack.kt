@@ -267,7 +267,7 @@ constructor(
      */
     fun restartTrack(
         options: LocalVideoTrackOptions = defaultsManager.videoTrackCaptureDefaults.copy(),
-        videoProcessor: VideoProcessor? = null
+        videoProcessor: VideoProcessor? = null,
     ) {
         if (isDisposed) {
             LKLog.e { "Attempting to restart track that was already disposed, aborting." }
@@ -302,7 +302,7 @@ constructor(
             options,
             eglBase,
             trackFactory,
-            videoProcessor
+            videoProcessor,
         )
 
         // migrate video sinks to the new track
@@ -369,7 +369,7 @@ constructor(
                 for (quality in qualities) {
                     val rid = EncodingUtils.ridForVideoQuality(quality.quality) ?: continue
                     val encoding = encodings.firstOrNull { it.rid == rid }
-                        // use low quality layer settings for non-simulcasted streams
+                    // use low quality layer settings for non-simulcasted streams
                         ?: encodings.takeIf { it.size == 1 && quality.quality == ProtoVideoQuality.LOW }?.first()
                         ?: continue
                     if (encoding.active != quality.enabled) {
