@@ -1266,14 +1266,14 @@ internal constructor(
             LivekitModels.DataPacket.ValueCase.RPC_REQUEST,
             LivekitModels.DataPacket.ValueCase.RPC_ACK,
             LivekitModels.DataPacket.ValueCase.RPC_RESPONSE,
-                -> {
+            -> {
                 listener?.onRpcPacketReceived(dp)
             }
 
             LivekitModels.DataPacket.ValueCase.STREAM_HEADER,
             LivekitModels.DataPacket.ValueCase.STREAM_CHUNK,
             LivekitModels.DataPacket.ValueCase.STREAM_TRAILER,
-                -> {
+            -> {
                 listener?.onDataStreamPacket(dp, encryptionType)
             }
 
@@ -1283,7 +1283,7 @@ internal constructor(
 
             LivekitModels.DataPacket.ValueCase.VALUE_NOT_SET,
             null,
-                -> {
+            -> {
                 LKLog.v { "invalid value for data packet" }
             }
 
@@ -1495,7 +1495,7 @@ internal fun LivekitModels.DataPacket.asEncryptedPacketPayload(): LivekitModels.
         LivekitModels.DataPacket.ValueCase.ENCRYPTED_PACKET,
         LivekitModels.DataPacket.ValueCase.TRANSCRIPTION,
         LivekitModels.DataPacket.ValueCase.VALUE_NOT_SET,
-            -> {
+        -> {
             null
         }
     }

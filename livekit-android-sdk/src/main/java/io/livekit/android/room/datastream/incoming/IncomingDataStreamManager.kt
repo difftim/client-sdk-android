@@ -333,7 +333,7 @@ class IncomingDataStreamManagerImpl @Inject constructor() : IncomingDataStreamMa
 
                 DataStream.Header.ContentHeaderCase.CONTENTHEADER_NOT_SET,
                 null,
-                    -> {
+                -> {
                     LKLog.i { "received header with non-set content header. streamId: ${header.streamId}, topic: ${header.topic}" }
                     null
                 }

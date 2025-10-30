@@ -334,6 +334,6 @@ fun LivekitModels.DisconnectReason?.convert(): DisconnectReason {
         LivekitModels.DisconnectReason.UNKNOWN_REASON,
         LivekitModels.DisconnectReason.UNRECOGNIZED,
         null,
-            -> DisconnectReason.UNKNOWN_REASON
+        -> DisconnectReason.UNKNOWN_REASON
     }
 }

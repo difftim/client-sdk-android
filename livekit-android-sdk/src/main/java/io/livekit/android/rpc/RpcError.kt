@@ -50,7 +50,7 @@ data class RpcError(
      */
     override val cause: Throwable? = null,
 
-    ) : Exception(message) {
+) : Exception(message) {
 
     enum class BuiltinRpcError(val code: Int, val message: String) {
         APPLICATION_ERROR(1500, "Application error in method handler"),

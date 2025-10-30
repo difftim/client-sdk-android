@@ -39,7 +39,7 @@ internal fun PeerConnection.PeerConnectionState.isDisconnected(): Boolean {
          */
         PeerConnection.PeerConnectionState.FAILED,
         PeerConnection.PeerConnectionState.CLOSED,
-            -> true
+        -> true
 
         else -> false
     }

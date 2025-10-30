@@ -1204,7 +1204,7 @@ constructor(
 
         if (Participant.Sid(participantSid) == localParticipant.sid) {
             LKLog.e { "Tried to create RemoteParticipant for local participant. sid: $participantSid" }
-            return;
+            return
         }
 
         val participant = getParticipantBySid(participantSid) as? RemoteParticipant
