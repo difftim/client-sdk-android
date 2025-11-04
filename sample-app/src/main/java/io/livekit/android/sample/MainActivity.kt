@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
                             token = token.editText?.text.toString(),
                             e2eeOn = e2eeEnabled.isChecked,
                             e2eeKey = e2eeKey.editText?.text.toString(),
+                            quicOn = quicEnabled.isChecked,
                             stressTest = StressTest.None,
                         ),
                     )

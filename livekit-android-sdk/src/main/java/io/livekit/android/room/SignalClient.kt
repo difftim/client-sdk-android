@@ -23,6 +23,7 @@ import io.livekit.android.RoomOptions
 import io.livekit.android.dagger.InjectionNames
 import io.livekit.android.room.participant.ParticipantTrackPermission
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.transport.SignalTransport
 import io.livekit.android.stats.NetworkInfo
 import io.livekit.android.stats.getClientInfo
 import io.livekit.android.util.CloseableCoroutineScope
@@ -56,21 +57,12 @@ import livekit.org.webrtc.SessionDescription
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import java.util.Date
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
-
-data class OpenBehavior(
-    val sendOnOpen: Boolean,
-    val payload: ByteString? = null,
-    var attemptId: Long,
-)
 
 /**
  * SignalClient to LiveKit WS servers
@@ -81,16 +73,16 @@ data class OpenBehavior(
 class SignalClient
 @Inject
 constructor(
-    private val websocketFactory: WebSocket.Factory,
+    private val transportFactory: SignalTransport.Factory,
     private val json: Json,
     private val okHttpClient: OkHttpClient,
     @Named(InjectionNames.DISPATCHER_IO)
     private val ioDispatcher: CoroutineDispatcher,
     private val networkInfo: NetworkInfo,
-) : WebSocketListener() {
+) : SignalTransport.Listener {
     var isConnected = false
         private set
-    private var currentWs: WebSocket? = null
+    private var transport: SignalTransport? = null
     private var isReconnecting: Boolean = false
     var listener: Listener? = null
     internal var serverVersion: Semver? = null
@@ -101,9 +93,10 @@ constructor(
 
     // Correlate callbacks with the active connection attempt to avoid races
     private var currentAttemptId: Long = 0
-    private val wsAttemptIds = ConcurrentHashMap<WebSocket, Long>()
-    private fun isActiveWebSocket(ws: WebSocket): Boolean {
-        return wsAttemptIds[ws] == currentAttemptId
+    private var connectStartTime: Long = 0
+    private fun isActiveTransport(transport: SignalTransport): Boolean {
+        // Each transport is tied to a specific attemptId, so no need to manage a map.
+        return transport == this.transport && transport.attemptId == this.transport?.attemptId
     }
 
     // join will always return a JoinResponse.
@@ -126,7 +119,7 @@ constructor(
     /**
      * @see [onReadyForResponses]
      */
-    private val responseFlow = MutableSharedFlow<Pair<WebSocket, LivekitRtc.SignalResponse>>(Int.MAX_VALUE)
+    private val responseFlow = MutableSharedFlow<Pair<SignalTransport, LivekitRtc.SignalResponse>>(Int.MAX_VALUE)
     private val responseFlowJobLock = Object()
     private var responseFlowJob: Job? = null
 
@@ -197,52 +190,35 @@ constructor(
         currentAttemptId += 1
         val attemptId = currentAttemptId
 
-        val tag = if (options.ttCallRequest != null && token.isEmpty()) {
+        val sendOnOpen = if (options.ttCallRequest != null && token.isEmpty()) {
             options.ttCallRequest?.let { req ->
-                val request = LivekitRtc.SignalRequest.newBuilder().setTtCallRequest(req).build()
-                OpenBehavior(
-                    sendOnOpen = true,
-                    payload = request.toByteArray().toByteString(),
-                    attemptId,
-                )
-            } ?: OpenBehavior(false, null, attemptId)
-        } else {
-            OpenBehavior(false, null, attemptId)
-        }
-
-        val requestBuilder = Request.Builder()
-            .url(wsUrlString)
-            .addHeader("Authorization", "Bearer $token")
-            .tag(OpenBehavior::class.java, tag)
-
-        options.userAgent?.let { it ->
-            if (!it.isEmpty()) {
-                requestBuilder.header("User-Agent", it)
+                LivekitRtc.SignalRequest.newBuilder().setTtCallRequest(req).build().toByteArray().toByteString()
             }
+        } else {
+            null
         }
 
-        val request = requestBuilder.build()
-
+        connectStartTime = System.currentTimeMillis()
+        LKLog.i { "[quic] startConnect" }
         val ret = try {
             withTimeout(15 * 1000) {
                 suspendCancellableCoroutine<Either<JoinResponse, Either<ReconnectResponse, Unit>>> {
                     // Wait for join/reconnect response via WebSocketListener
                     joinContinuation = it
-                    LKLog.i { "[track-reconnect] new websocket created - beg, attempt=$attemptId" }
-                    val newWs = websocketFactory.newWebSocket(request, this@SignalClient)
-                    wsAttemptIds[newWs] = attemptId
-                    currentWs = newWs
-                    LKLog.i { "[track-reconnect] new websocket created - end, attempt=$attemptId, websocket=$newWs" }
+                    LKLog.i { "[track-reconnect] new transport created - beg, attempt=$attemptId" }
+                    val newTransport = transportFactory.create(options, attemptId, sendOnOpen)
+                    newTransport.connect(wsUrlString, token, options, this@SignalClient)
+                    transport = newTransport
+                    LKLog.i { "[track-reconnect] new transport created - end, attempt=$attemptId, transport=$newTransport" }
                 }
             }
         } catch (t: TimeoutCancellationException) {
             // Timeout: close and propagate
-            val ws = currentWs
-            if (ws != null && isActiveWebSocket(ws)) {
-                LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId, close websocket=$ws" }
-                wsAttemptIds.remove(ws)
+            val localTransport = transport
+            if (localTransport != null && isActiveTransport(localTransport)) {
+                LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId, close transport=$localTransport" }
                 // Immediately close
-                ws.cancel()
+                localTransport.cancel()
             }
             LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId" }
             throw t
@@ -306,9 +282,9 @@ constructor(
         synchronized(responseFlowJobLock) {
             if (responseFlowJob == null) {
                 responseFlowJob = coroutineScope.launch {
-                    responseFlow.collect { (ws, response) ->
+                    responseFlow.collect { (transport, response) ->
                         responseFlow.resetReplayCache()
-                        handleSignalResponseImpl(ws, response)
+                        handleSignalResponseImpl(transport, response)
                     }
                 }
             }
@@ -340,66 +316,53 @@ constructor(
         startRequestQueue()
     }
 
-    // --------------------------------- WebSocket Listener --------------------------------------//
-    override fun onOpen(webSocket: WebSocket, response: Response) {
-        val tag = response.request.tag(OpenBehavior::class.java)
-
-        if (!isActiveWebSocket(webSocket)) {
-            LKLog.i { "[track-reconnect] websocket onOpen ignored (stale) [aliveAttempt=$currentAttemptId, nowAttempt=${tag?.attemptId}] ws=$webSocket" }
+    // ---------------------------------SignalTransport  Listener --------------------------------------//
+    override fun onOpen(transport: SignalTransport) {
+        LKLog.i { "[quic] onOpen: ${System.currentTimeMillis() - connectStartTime}, transport=$transport" }
+        if (!isActiveTransport(transport)) {
+            LKLog.i { "[track-reconnect] transport onOpen ignored (stale) [aliveAttempt=$currentAttemptId, nowAttempt=${transport.attemptId}] ts=$transport" }
             return
         }
 
-        LKLog.i { "[track-reconnect] websocket onOpen send=${tag?.sendOnOpen}, attempt=${tag?.attemptId}" }
+        LKLog.i { "[track-reconnect] transport onOpen send=${transport.sendOnOpen != null}, attempt=${transport.attemptId}" }
 
-        if (tag?.sendOnOpen == true && tag.payload != null) {
-            webSocket.send(tag.payload)
+        transport.sendOnOpen?.let { req ->
+            transport.send(req)
         }
     }
 
-    override fun onMessage(webSocket: WebSocket, text: String) {
-        if (!isActiveWebSocket(webSocket)) {
+    override fun onMessage(transport: SignalTransport, message: ByteString) {
+        if (!isActiveTransport(transport)) {
             // Possibly message from old websocket, discard.
             return
         }
-
-        LKLog.w { "received JSON message, unsupported in this version." }
-    }
-
-    override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-        if (!isActiveWebSocket(webSocket)) {
-            // Possibly message from old websocket, discard.
-            return
-        }
-        val byteArray = bytes.toByteArray()
+        val byteArray = message.toByteArray()
         val signalResponseBuilder = LivekitRtc.SignalResponse.newBuilder()
             .mergeFrom(byteArray)
         val response = signalResponseBuilder.build()
 
-        handleSignalResponse(webSocket, response)
+        handleSignalResponse(transport, response)
     }
 
-    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-        val stale = !isActiveWebSocket(webSocket)
-        LKLog.i { "[track-reconnect] websocket onClosed \"${if (stale) "ignored (stale) " else ""}\" code=$code, webSocket=$webSocket, reason=$reason" }
+    override fun onClosed(transport: SignalTransport, code: Int, reason: String) {
+        val stale = !isActiveTransport(transport)
+        LKLog.i { "[track-reconnect] transport onClosed \"${if (stale) "ignored (stale) " else ""}\" code=$code, transport=$transport, reason=$reason" }
 
         if (stale) {
-            wsAttemptIds.remove(webSocket)
             return
         }
-        wsAttemptIds.remove(webSocket)
         handleWebSocketClose(reason, code)
     }
 
-    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        LKLog.i { "[track-reconnect] websocket closing, webSocket=$webSocket" }
+    override fun onClosing(transport: SignalTransport, code: Int, reason: String) {
+        LKLog.i { "[track-reconnect] transport closing, transport=$transport" }
     }
 
-    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        val stale = !isActiveWebSocket(webSocket)
-        LKLog.i { "[track-reconnect] websocket failure \"${if (stale) "ignored (stale) " else ""}\" currentWs=$currentWs, webSocket=$webSocket, response=$response" }
+    override fun onFailure(transport: SignalTransport, t: Throwable, response: Response?) {
+        val stale = !isActiveTransport(transport)
+        LKLog.i { "[track-reconnect] transport failure \"${if (stale) "ignored (stale) " else ""}\" currentTs=${this.transport}, transport=$transport, response=$response" }
 
         if (stale) {
-            wsAttemptIds.remove(webSocket)
             return
         }
         var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
@@ -433,16 +396,14 @@ constructor(
             LKLog.e(e) { "failed to validate connection" }
         }
 
-        wsAttemptIds.remove(webSocket)
-
         val error = exceptionError
         if (error != null) {
-            LKLog.e(t) { "websocket failure(reason): $error" }
+            LKLog.e(t) { "transport failure(reason): $error" }
             listener?.onError(error)
             joinContinuation?.cancel(error)
             joinContinuation = null
         } else {
-            LKLog.e(t) { "websocket failure(response): $response" }
+            LKLog.e(t) { "transport failure(response): $response" }
             listener?.onError(t)
             joinContinuation?.cancel(t)
             joinContinuation = null
@@ -454,7 +415,7 @@ constructor(
             // onClosing/onClosed will not be called after onFailure.
             // Handle websocket closure here.
             handleWebSocketClose(
-                reason = error?.message ?: response?.toString() ?: t.localizedMessage ?: "websocket failure",
+                reason = error?.message ?: response?.toString() ?: t.localizedMessage ?: "transport failure",
                 code = response?.code ?: CLOSE_REASON_WEBSOCKET_FAILURE,
             )
         }
@@ -722,20 +683,20 @@ constructor(
 
     private fun sendRequestImpl(request: LivekitRtc.SignalRequest) {
         LKLog.v { "sending request: $request" }
-        if (!isConnected || currentWs == null) {
+        if (!isConnected || transport == null) {
             LKLog.w { "not connected, could not send request $request" }
             return
         }
         val message = request.toByteArray().toByteString()
-        val sent = currentWs?.send(message) ?: false
+        val sent = transport?.send(message) ?: false
 
         if (!sent) {
             LKLog.e { "error sending request: $request" }
         }
     }
 
-    private fun handleSignalResponse(ws: WebSocket, response: LivekitRtc.SignalResponse) {
-        if (!isActiveWebSocket(ws)) {
+    private fun handleSignalResponse(transport: SignalTransport, response: LivekitRtc.SignalResponse) {
+        if (!isActiveTransport(transport)) {
             return
         }
 
@@ -764,10 +725,11 @@ constructor(
                 } catch (t: Throwable) {
                     LKLog.w(t) { "Thrown while trying to parse server version." }
                 }
+                LKLog.i { "[quic] joinResponse:  ${System.currentTimeMillis() - connectStartTime}" }
                 joinContinuation?.resumeWith(Result.success(Either.Left(response.join)))
             } else if (response.hasLeave()) {
                 // Some reconnects may immediately send leave back without a join response first.
-                handleSignalResponseImpl(ws, response)
+                handleSignalResponseImpl(transport, response)
             } else if (isReconnecting) {
                 // When reconnecting, any message received means signal reconnected.
                 // Newer servers will send a reconnect response first
@@ -791,12 +753,12 @@ constructor(
                 return
             }
         }
-        responseFlow.tryEmit(ws to response)
+        responseFlow.tryEmit(transport to response)
     }
 
-    private fun handleSignalResponseImpl(ws: WebSocket, response: LivekitRtc.SignalResponse) {
-        if (!isActiveWebSocket(ws)) {
-            LKLog.v { "received message from old websocket, discarding." }
+    private fun handleSignalResponseImpl(transport: SignalTransport, response: LivekitRtc.SignalResponse) {
+        if (!isActiveTransport(transport)) {
+            LKLog.v { "received message from old transport, discarding." }
             return
         }
 
@@ -908,7 +870,7 @@ constructor(
 
             LivekitRtc.SignalResponse.MessageCase.MESSAGE_NOT_SET,
             null,
-            -> {
+                -> {
                 LKLog.v { "empty messageCase!" }
             }
 
@@ -945,7 +907,7 @@ constructor(
         pongJob = coroutineScope.launch {
             delay(pingTimeoutDurationMillis)
             LKLog.d { "Ping timeout reached for ping sent at $timestamp." }
-            currentWs?.cancel()
+            transport?.cancel()
         }
     }
 
@@ -975,14 +937,10 @@ constructor(
         pongJob?.cancel()
         pongJob = null
 
-        var holdingWs = currentWs
-        currentWs = null
-
-        holdingWs?.let {
-            wsAttemptIds.remove(it)
-            it.cancel()
-        }
-        holdingWs = null
+        var holdingTs = transport
+        transport = null
+        holdingTs?.cancel()
+        holdingTs = null
 
         joinContinuation?.cancel()
         joinContinuation = null

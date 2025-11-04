@@ -21,6 +21,9 @@ import android.javax.sdp.SdpFactory
 import android.media.AudioAttributes
 import android.media.MediaRecorder
 import android.os.Build
+import com.ttcall.smp.Config
+import com.ttcall.smp.Connector
+import com.ttcall.smp.Const
 import dagger.Module
 import dagger.Provides
 import dagger.Reusable
@@ -36,6 +39,9 @@ import io.livekit.android.audio.NoAudioRecordPrewarmer
 import io.livekit.android.e2ee.DataPacketCryptorManager
 import io.livekit.android.e2ee.DataPacketCryptorManagerImpl
 import io.livekit.android.memory.CloseableManager
+import io.livekit.android.room.transport.SignalTransport
+import io.livekit.android.room.transport.TtsignalTransport
+import io.livekit.android.room.transport.WebSocketTransport
 import io.livekit.android.util.LKLog
 import io.livekit.android.util.LoggingLevel
 import io.livekit.android.webrtc.CustomAudioProcessingFactory
@@ -58,6 +64,7 @@ import livekit.org.webrtc.VideoDecoderFactory
 import livekit.org.webrtc.VideoEncoderFactory
 import livekit.org.webrtc.audio.AudioDeviceModule
 import livekit.org.webrtc.audio.JavaAudioDeviceModule
+import okhttp3.OkHttpClient
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -147,6 +154,38 @@ internal object RTCModule {
             }
         }
         return LibWebrtcInitialization
+    }
+
+    @Provides
+    @Singleton
+    fun ttsignalConnector(): Connector {
+        val config = Config()
+        config.taskThreads = 1
+        config.timerThreads = 1
+        config.idleTimeOut = 20000
+        config.alpn = "ttsignal"
+        config.hostname = "localhost"
+        config.port = 443
+        config.maxConnections = 1000
+        config.congestCtrl = Const.CC_BBR2
+        config.pingOn = true
+        config.logFile = "ttclient.log"
+        config.logLevel = Const.LOG_ERROR
+        return Connector(config)
+    }
+
+    @Provides
+    fun signalTransportFactory(
+        okHttpClient: OkHttpClient,
+        ttsignalConnector: Connector,
+    ): SignalTransport.Factory {
+        return SignalTransport.Factory { options, attemptId, sendOnOpen ->
+            if (options.useQuicSignal) {
+                TtsignalTransport(attemptId, sendOnOpen, ttsignalConnector)
+            } else {
+                WebSocketTransport(attemptId, sendOnOpen, okHttpClient)
+            }
+        }
     }
 
     @Provides

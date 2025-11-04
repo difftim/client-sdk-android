@@ -57,6 +57,12 @@
         android:layout_height="wrap_content"
         android:text="@string/e2ee_enabled_str" />
 
+    <Switch
+        android:id="@+id/quic_enabled"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/quic_enabled_str" />
+
     <Button
         android:id="@+id/connect_button"
         android:layout_width="match_parent"

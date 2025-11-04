@@ -54,6 +54,7 @@ class CallActivity : AppCompatActivity() {
             token = args.token,
             e2ee = args.e2eeOn,
             e2eeKey = args.e2eeKey,
+            quic = args.quicOn,
             stressTest = args.stressTest,
             application = application,
              audioProcessorOptions = AudioProcessorOptions(
@@ -269,6 +270,7 @@ class CallActivity : AppCompatActivity() {
         val token: String,
         val e2eeKey: String,
         val e2eeOn: Boolean,
+        val quicOn: Boolean,
         val stressTest: StressTest,
     ) : Parcelable
 }

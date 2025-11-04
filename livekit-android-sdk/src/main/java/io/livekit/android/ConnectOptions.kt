@@ -55,9 +55,14 @@ data class ConnectOptions(
      */
     val protocolVersion: ProtocolVersion = ProtocolVersion.v13,
 
-    var ttCallRequest: LivekitTemptalk.TTCallRequest? = null,
+    val ttCallRequest: LivekitTemptalk.TTCallRequest? = null,
 
-    var userAgent: String? = null,
+    val userAgent: String? = null,
+
+    /**
+     * Use ttsignal for transport, defaults to false
+     */
+    val useQuicSignal: Boolean = false,
 ) {
     internal var reconnect: Boolean = false
     internal var participantSid: String? = null

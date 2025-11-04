@@ -128,6 +128,7 @@ class CallViewModel(
     application: Application,
     val e2ee: Boolean = false,
     val e2eeKey: String? = "",
+    val quic: Boolean = false,
     val audioProcessorOptions: AudioProcessorOptions? = null,
     val stressTest: StressTest = StressTest.None,
 ) : AndroidViewModel(application) {
@@ -145,7 +146,7 @@ class CallViewModel(
 
     private fun getConnectOptions(): ConnectOptions {
         if (!BuildConfig.USE_MERGE_START_CALL || BuildConfig.MERGE_START_CALL_PARAM.isNullOrBlank()) {
-            return ConnectOptions()
+            return ConnectOptions(useQuicSignal=quic)
         }
         val param = Json.decodeFromString<MergeStartCallParam>(BuildConfig.MERGE_START_CALL_PARAM)
 

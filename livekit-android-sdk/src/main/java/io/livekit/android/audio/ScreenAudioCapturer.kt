@@ -142,7 +142,7 @@ constructor(
 
                 AudioFormat.ENCODING_PCM_16BIT,
                 AudioFormat.ENCODING_DEFAULT,
-                -> {
+                    -> {
                     adjustShortBuffer(recordBuffer.asShortBuffer(), gain)
                 }
 
