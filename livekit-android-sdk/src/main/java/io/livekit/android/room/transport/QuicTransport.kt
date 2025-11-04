@@ -156,6 +156,10 @@ class QuicTransport(
         connection = null
         stream = null
     }
+
+    override fun toString(): String {
+        return "${super.toString()}(attemptId=$attemptId)"
+    }
 }
 
 class TtsignalException(message: String, val errorCode: Int? = null) : Exception(message)

@@ -90,4 +90,8 @@ class WebSocketTransport(
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         listener?.onFailure(this, t, response)
     }
+
+    override fun toString(): String {
+        return "${super.toString()}(attemptId=$attemptId)"
+    }
 }

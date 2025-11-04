@@ -318,13 +318,11 @@ constructor(
 
     // ---------------------------------SignalTransport  Listener --------------------------------------//
     override fun onOpen(transport: SignalTransport) {
-        LKLog.i { "[quic] onOpen: ${System.currentTimeMillis() - connectStartTime}, transport=$transport" }
+        LKLog.i { "[track-reconnect] [quic] transport onOpen(${System.currentTimeMillis() - connectStartTime}) send=${transport.sendOnOpen != null}, transport=$transport" }
         if (!isActiveTransport(transport)) {
-            LKLog.i { "[track-reconnect] transport onOpen ignored (stale) [aliveAttempt=$currentAttemptId, nowAttempt=${transport.attemptId}] ts=$transport" }
+            LKLog.i { "[track-reconnect] transport onOpen ignored (stale) [aliveAttempt=$currentAttemptId] ts=$transport" }
             return
         }
-
-        LKLog.i { "[track-reconnect] transport onOpen send=${transport.sendOnOpen != null}, attempt=${transport.attemptId}" }
 
         transport.sendOnOpen?.let { req ->
             transport.send(req)
