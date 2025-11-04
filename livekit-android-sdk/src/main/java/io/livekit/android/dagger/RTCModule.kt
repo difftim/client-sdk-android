@@ -40,7 +40,7 @@ import io.livekit.android.e2ee.DataPacketCryptorManager
 import io.livekit.android.e2ee.DataPacketCryptorManagerImpl
 import io.livekit.android.memory.CloseableManager
 import io.livekit.android.room.transport.SignalTransport
-import io.livekit.android.room.transport.TtsignalTransport
+import io.livekit.android.room.transport.QuicTransport
 import io.livekit.android.room.transport.WebSocketTransport
 import io.livekit.android.util.LKLog
 import io.livekit.android.util.LoggingLevel
@@ -181,7 +181,7 @@ internal object RTCModule {
     ): SignalTransport.Factory {
         return SignalTransport.Factory { options, attemptId, sendOnOpen ->
             if (options.useQuicSignal) {
-                TtsignalTransport(attemptId, sendOnOpen, ttsignalConnector)
+                QuicTransport(attemptId, sendOnOpen, ttsignalConnector)
             } else {
                 WebSocketTransport(attemptId, sendOnOpen, okHttpClient)
             }

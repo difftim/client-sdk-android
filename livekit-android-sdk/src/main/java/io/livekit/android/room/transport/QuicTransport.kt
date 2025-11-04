@@ -31,7 +31,7 @@ import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 
-class TtsignalTransport(
+class QuicTransport(
     override val attemptId: Long,
     override val sendOnOpen: ByteString?,
     private val connector: Connector,
@@ -73,23 +73,23 @@ class TtsignalTransport(
             override fun onConnectResult(conn: Connection?, errorCode: Int, message: String?) {
                 LKLog.v { "Ttsignal onConnectResult: $errorCode, $message" }
                 if (errorCode == 0) {
-                    this@TtsignalTransport.connection = conn
-                    listener.onOpen(this@TtsignalTransport)
+                    this@QuicTransport.connection = conn
+                    listener.onOpen(this@QuicTransport)
                 } else {
-                    listener.onFailure(this@TtsignalTransport, TtsignalException("Connection failed: $message", errorCode), null)
+                    listener.onFailure(this@QuicTransport, TtsignalException("Connection failed: $message", errorCode), null)
                 }
             }
 
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
                 LKLog.v { "Ttsignal onStreamCreated: ${stream.id()}" }
-                this@TtsignalTransport.stream = stream
+                this@QuicTransport.stream = stream
                 sendOnOpen?.let { send(it) }
             }
 
             override fun onStreamClosed(conn: Connection?, stream: Stream) {
                 LKLog.v { "Ttsignal onStreamClosed: ${stream.id()}" }
-                if (this@TtsignalTransport.stream?.id() == stream.id()) {
-                    this@TtsignalTransport.stream = null
+                if (this@QuicTransport.stream?.id() == stream.id()) {
+                    this@QuicTransport.stream = null
                 }
             }
 
@@ -100,18 +100,18 @@ class TtsignalTransport(
 
             override fun onRecvData(conn: Connection?, timestamp: Long, transId: Int, stream: Stream?, buffer: ByteArray) {
                 LKLog.v { "Ttsignal onRecvData" }
-                listener.onMessage(this@TtsignalTransport, buffer.toByteString())
+                listener.onMessage(this@QuicTransport, buffer.toByteString())
             }
 
             override fun onClosed(conn: Connection?, reason: String?) {
                 LKLog.v { "Ttsignal onClosed: $reason" }
-                listener.onClosed(this@TtsignalTransport, 1000, reason ?: "Connection closed")
+                listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
                 cleanup()
             }
 
             override fun onException(conn: Connection?, errorMsg: String?) {
                 LKLog.e { "Ttsignal onException: $errorMsg" }
-                listener.onFailure(this@TtsignalTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
+                listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
                 cleanup()
             }
         }
