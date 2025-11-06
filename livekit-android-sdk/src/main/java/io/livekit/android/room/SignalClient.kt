@@ -191,7 +191,7 @@ constructor(
         val attemptId = currentAttemptId
 
         val sendOnOpen = if (options.ttCallRequest != null && token.isEmpty()) {
-            options.ttCallRequest?.let { req ->
+            options.ttCallRequest.let { req ->
                 LivekitRtc.SignalRequest.newBuilder().setTtCallRequest(req).build().toByteArray().toByteString()
             }
         } else {
@@ -935,10 +935,9 @@ constructor(
         pongJob?.cancel()
         pongJob = null
 
-        var holdingTs = transport
+        val holdingTs = transport
         transport = null
         holdingTs?.cancel()
-        holdingTs = null
 
         joinContinuation?.cancel()
         joinContinuation = null

@@ -19,6 +19,7 @@ package io.livekit.android.sample
 import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -34,13 +35,21 @@ class MainActivity : AppCompatActivity() {
 
         val binding = MainActivityBinding.inflate(layoutInflater)
 
+        // Set up the URL dropdown
+        val urls = arrayOf(
+            MainViewModel.URL,
+            // "https://192.168.1.3:7880/"
+        )
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, urls)
+        binding.urlDropdown.setAdapter(adapter)
+
         val urlString = viewModel.getSavedUrl()
         val tokenString = viewModel.getSavedToken()
         val e2EEOn = viewModel.getE2EEOptionsOn()
         val e2EEKey = viewModel.getSavedE2EEKey()
 
         binding.run {
-            url.editText?.text = SpannableStringBuilder(urlString)
+            urlDropdown.setText(urlString, false)
             token.editText?.text = SpannableStringBuilder(tokenString)
             e2eeEnabled.isChecked = e2EEOn
             e2eeKey.editText?.text = SpannableStringBuilder(e2EEKey)
@@ -49,7 +58,7 @@ class MainActivity : AppCompatActivity() {
                     putExtra(
                         CallActivity.KEY_ARGS,
                         CallActivity.BundleArgs(
-                            url = url.editText?.text.toString(),
+                            url = urlDropdown.text.toString(),
                             token = token.editText?.text.toString(),
                             e2eeOn = e2eeEnabled.isChecked,
                             e2eeKey = e2eeKey.editText?.text.toString(),
@@ -63,7 +72,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             saveButton.setOnClickListener {
-                viewModel.setSavedUrl(url.editText?.text?.toString() ?: "")
+                viewModel.setSavedUrl(urlDropdown.text?.toString() ?: "")
                 viewModel.setSavedToken(token.editText?.text?.toString() ?: "")
                 viewModel.setSavedE2EEOn(e2eeEnabled.isChecked)
                 viewModel.setSavedE2EEKey(e2eeKey.editText?.text?.toString() ?: "")
@@ -77,7 +86,7 @@ class MainActivity : AppCompatActivity() {
 
             resetButton.setOnClickListener {
                 viewModel.reset()
-                url.editText?.text = SpannableStringBuilder(MainViewModel.URL)
+                urlDropdown.setText(MainViewModel.URL, false)
                 token.editText?.text = SpannableStringBuilder(MainViewModel.TOKEN)
                 e2eeEnabled.isChecked = false
                 e2eeKey.editText?.text = SpannableStringBuilder("")

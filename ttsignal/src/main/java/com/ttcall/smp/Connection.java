@@ -1,7 +1,7 @@
 /// ////////////////////////////////////////////////////////////////////////////
 // file : Connection.java
 // author : antoniozhou
-/// ////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 package com.ttcall.smp;
 
@@ -60,6 +60,9 @@ public class Connection {
             @Override
             public void onStreamCreated(Connection conn, int streamId) {
                 // 新建流时的处理逻辑
+                if (streams.containsKey(streamId)) {
+                    return;
+                }
                 Stream stream = new Stream(conn, streamId);
                 streams.put(streamId, stream);
                 handler.onStreamCreated(conn, stream);
@@ -68,9 +71,11 @@ public class Connection {
             @Override
             public void onStreamClosed(Connection conn, int streamId) {
                 // 流关闭时的处理逻辑
-                System.out.println("流关闭: " + streamId);
+                System.out.println("Raw QUIC 流关闭, stream id : " + streamId);
                 Stream stream = streams.remove(streamId);
-                handler.onStreamClosed(conn, stream);
+                if (stream != null) {
+                    handler.onStreamClosed(conn, stream);
+                }
             }
 
             @Override

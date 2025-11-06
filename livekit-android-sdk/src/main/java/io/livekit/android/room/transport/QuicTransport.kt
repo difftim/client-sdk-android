@@ -27,9 +27,11 @@ import io.livekit.android.ConnectOptions
 import io.livekit.android.util.LKLog
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
-import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 class QuicTransport(
     override val attemptId: Long,
@@ -39,6 +41,11 @@ class QuicTransport(
     private var connection: Connection? = null
     private var stream: Stream? = null
     private var listener: SignalTransport.Listener? = null
+
+    private val listenerExecutor: ExecutorService =
+        Executors.newSingleThreadExecutor { r ->
+            Thread(r, "QuicTransport-Listener-Thread-$attemptId").apply { isDaemon = true }
+        }
 
     companion object {
         init {
@@ -66,30 +73,36 @@ class QuicTransport(
             maxConnections = 1
             congestCtrl = Const.CC_BBR2
             pingOn = true
-            alpn = "h3"
+            // alpn = "h3" //for webtransport
+            alpn = "ttsignal" // for raw quic
         }
 
         val connectionHandler = object : IConnectionHandler {
             override fun onConnectResult(conn: Connection?, errorCode: Int, message: String?) {
-                LKLog.v { "Ttsignal onConnectResult: $errorCode, $message" }
-                if (errorCode == 0) {
-                    this@QuicTransport.connection = conn
-                    listener.onOpen(this@QuicTransport)
-                } else {
-                    listener.onFailure(this@QuicTransport, TtsignalException("Connection failed: $message", errorCode), null)
+                LKLog.v { "[quic] onConnectResult: $errorCode, $message" }
+                executeOnListenerThread {
+                    if (errorCode == 0) {
+                        this@QuicTransport.connection = conn
+                        listener.onOpen(this@QuicTransport)
+                    } else {
+                        listener.onFailure(this@QuicTransport, TtsignalException("Connection failed: $message", errorCode), null)
+                    }
                 }
             }
 
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
-                LKLog.v { "Ttsignal onStreamCreated: ${stream.id()}" }
-                this@QuicTransport.stream = stream
-                sendOnOpen?.let { send(it) }
+                LKLog.v { "onStreamCreated: ${stream.id()}" }
+                executeOnListenerThread {
+                    this@QuicTransport.stream = stream
+                }
             }
 
             override fun onStreamClosed(conn: Connection?, stream: Stream) {
-                LKLog.v { "Ttsignal onStreamClosed: ${stream.id()}" }
-                if (this@QuicTransport.stream?.id() == stream.id()) {
-                    this@QuicTransport.stream = null
+                LKLog.v { "onStreamClosed: ${stream.id()}" }
+                executeOnListenerThread {
+                    if (this@QuicTransport.stream?.id() == stream.id()) {
+                        this@QuicTransport.stream = null
+                    }
                 }
             }
 
@@ -99,20 +112,26 @@ class QuicTransport(
             }
 
             override fun onRecvData(conn: Connection?, timestamp: Long, transId: Int, stream: Stream?, buffer: ByteArray) {
-                LKLog.v { "Ttsignal onRecvData" }
-                listener.onMessage(this@QuicTransport, buffer.toByteString())
+                executeOnListenerThread {
+                    listener.onMessage(this@QuicTransport, buffer.toByteString())
+                }
             }
 
             override fun onClosed(conn: Connection?, reason: String?) {
-                LKLog.v { "Ttsignal onClosed: $reason" }
-                listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
-                cleanup()
+                LKLog.v { "onClosed: $reason" }
+                executeOnListenerThread {
+                    listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
+                    cleanup()
+                }
             }
 
             override fun onException(conn: Connection?, errorMsg: String?) {
-                LKLog.e { "Ttsignal onException: $errorMsg" }
-                listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
-                cleanup()
+                LKLog.e { "onException: $errorMsg" }
+                executeOnListenerThread {
+                    listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
+                    cleanup()
+                }
+
             }
         }
 
@@ -125,29 +144,29 @@ class QuicTransport(
             ""
         }
 
-        var connectUrl = url.replaceFirst("wss", "https")
-        val items = connectUrl.split('?')
-        if (items.size > 1) {
-            connectUrl = items[0] + "?" + URLEncoder.encode(items[1], "UTF-8")
-        }
+        val connectUrl = url.replaceFirst("wss", "https")
+//        val items = connectUrl.split('?')
+//        if (items.size > 1) {
+//            connectUrl = items[0] + "?" + URLEncoder.encode(items[1], "UTF-8")
+//        }
 
         this.connection?.connect(connectUrl, authString)
     }
 
     override fun send(data: ByteString): Boolean {
-        val stream = this.stream ?: return false.also { LKLog.w { "Ttsignal send called but stream is not available." } }
+        val stream = this.stream ?: return false.also { LKLog.w { "send called but stream is not available." } }
         val bytes = data.toByteArray()
         return stream.sendData(bytes) == 0
     }
 
     override fun close(code: Int, reason: String) {
-        LKLog.v { "Ttsignal closing connection..." }
+        LKLog.v { "close connection..." }
         connection?.close()
         cleanup()
     }
 
     override fun cancel() {
-        LKLog.v { "Ttsignal cancelling connection..." }
+        LKLog.v { "cancel connection..." }
         connection?.close()
         cleanup()
     }
@@ -159,6 +178,18 @@ class QuicTransport(
 
     override fun toString(): String {
         return "${super.toString()}(attemptId=$attemptId)"
+    }
+
+    private fun executeOnListenerThread(block: () -> Unit) {
+        try {
+            if (!listenerExecutor.isShutdown) {
+                listenerExecutor.execute(block)
+            } else {
+                LKLog.w { "Listener executor is shutdown, cannot execute callback." }
+            }
+        } catch (e: RejectedExecutionException) {
+            LKLog.w(e) { "Failed to execute callback on listener thread." }
+        }
     }
 }
 
