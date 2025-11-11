@@ -43,7 +43,7 @@ internal class CameraXCapturer(
     @get:FlowObservable
     var currentCamera by flowDelegate<Camera?>(null)
 
-    private var cameraXSession :CameraXSession? = null
+    private var cameraXSession: CameraXSession? = null
 
     var deviceRotation: Int? = null
         set(rotation) {
