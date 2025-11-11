@@ -17,12 +17,12 @@
 package io.livekit.android.room.transport
 
 import android.net.Uri
-import com.ttcall.smp.Config
-import com.ttcall.smp.Connection
-import com.ttcall.smp.Connector
-import com.ttcall.smp.Const
-import com.ttcall.smp.IConnectionHandler
-import com.ttcall.smp.Stream
+import org.difft.android.smp.Config
+import org.difft.android.smp.Connection
+import org.difft.android.smp.Connector
+import org.difft.android.smp.Const
+import org.difft.android.smp.IConnectionHandler
+import org.difft.android.smp.Stream
 import io.livekit.android.ConnectOptions
 import io.livekit.android.util.LKLog
 import okio.ByteString
@@ -50,7 +50,7 @@ class QuicTransport(
     companion object {
         init {
             try {
-                System.loadLibrary("ttsignaljni")
+                System.loadLibrary("signal")
             } catch (e: UnsatisfiedLinkError) {
                 LKLog.e(e) { "Failed to load ttsignaljni library." }
             }

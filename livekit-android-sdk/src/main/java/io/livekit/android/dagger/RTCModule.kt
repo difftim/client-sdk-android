@@ -21,9 +21,9 @@ import android.javax.sdp.SdpFactory
 import android.media.AudioAttributes
 import android.media.MediaRecorder
 import android.os.Build
-import com.ttcall.smp.Config
-import com.ttcall.smp.Connector
-import com.ttcall.smp.Const
+import org.difft.android.smp.Config
+import org.difft.android.smp.Connector
+import org.difft.android.smp.Const
 import dagger.Module
 import dagger.Provides
 import dagger.Reusable

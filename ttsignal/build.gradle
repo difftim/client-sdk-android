@@ -31,7 +31,10 @@ android {
         }
     }
     publishing {
-        singleVariant("release")
+        singleVariant("release") {
+            withJavadocJar()
+            withSourcesJar()
+        }
     }
 }
 
@@ -48,9 +51,9 @@ afterEvaluate {
         publications {
             release(MavenPublication) {
                 from components.release
-                groupId = 'com.ttcall.smp'
-                artifactId = 'ttsignal'
-                version = '1.0'
+                groupId = GROUP
+                artifactId = POM_ARTIFACT_ID
+                version = VERSION_NAME
             }
         }
         repositories {

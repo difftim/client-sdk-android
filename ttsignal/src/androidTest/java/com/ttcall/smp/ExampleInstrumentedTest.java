@@ -21,6 +21,6 @@ public class ExampleInstrumentedTest {
     public void useAppContext() {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("com.ttcall.smp.test", appContext.getPackageName());
+        assertEquals("org.difft.android.smp.test", appContext.getPackageName());
     }
 }
