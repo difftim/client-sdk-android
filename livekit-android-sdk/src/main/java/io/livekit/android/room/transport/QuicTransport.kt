@@ -17,20 +17,22 @@
 package io.livekit.android.room.transport
 
 import android.net.Uri
+import io.livekit.android.ConnectOptions
+import io.livekit.android.util.LKLog
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
 import org.difft.android.smp.Config
 import org.difft.android.smp.Connection
 import org.difft.android.smp.Connector
 import org.difft.android.smp.Const
 import org.difft.android.smp.IConnectionHandler
 import org.difft.android.smp.Stream
-import io.livekit.android.ConnectOptions
-import io.livekit.android.util.LKLog
-import okio.ByteString
-import okio.ByteString.Companion.toByteString
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.RejectedExecutionException
 
 class QuicTransport(
@@ -83,7 +85,6 @@ class QuicTransport(
                 executeOnListenerThread {
                     if (errorCode == 0) {
                         this@QuicTransport.connection = conn
-                        listener.onOpen(this@QuicTransport)
                     } else {
                         listener.onFailure(this@QuicTransport, TtsignalException("Connection failed: $message", errorCode), null)
                     }
@@ -91,9 +92,10 @@ class QuicTransport(
             }
 
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
-                LKLog.v { "onStreamCreated: ${stream.id()}" }
+                LKLog.v { "[quic] onStreamCreated: ${stream.id()}" }
                 executeOnListenerThread {
                     this@QuicTransport.stream = stream
+                    listener.onOpen(this@QuicTransport)
                 }
             }
 
@@ -141,7 +143,7 @@ class QuicTransport(
         val authString = if (token.isNotEmpty()) {
             "{\"Authorization\":\"Bearer $token\"}"
         } else {
-            ""
+            "{}"
         }
 
         val connectUrl = url.replaceFirst("wss", "https")
@@ -160,15 +162,19 @@ class QuicTransport(
     }
 
     override fun close(code: Int, reason: String) {
-        LKLog.v { "close connection..." }
-        connection?.close()
-        cleanup()
+        executeOnListenerThread {
+            LKLog.v { "close connection..." }
+            connection?.close()
+            cleanup()
+        }
     }
 
     override fun cancel() {
-        LKLog.v { "cancel connection..." }
-        connection?.close()
-        cleanup()
+        executeOnListenerThread {
+            LKLog.v { "cancel connection..." }
+            connection?.close()
+            cleanup()
+        }
     }
 
     private fun cleanup() {

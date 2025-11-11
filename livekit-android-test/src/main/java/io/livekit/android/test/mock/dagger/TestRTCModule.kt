@@ -18,6 +18,7 @@ package io.livekit.android.test.mock.dagger
 
 import android.content.Context
 import android.javax.sdp.SdpFactory
+import org.difft.android.smp.Connector
 import dagger.Module
 import dagger.Provides
 import dagger.Reusable
@@ -30,12 +31,14 @@ import io.livekit.android.dagger.CapabilitiesGetter
 import io.livekit.android.dagger.InjectionNames
 import io.livekit.android.e2ee.DataPacketCryptorManager
 import io.livekit.android.e2ee.KeyProvider
+import io.livekit.android.room.transport.SignalTransport
 import io.livekit.android.test.mock.MockAudioDeviceModule
 import io.livekit.android.test.mock.MockAudioProcessingController
 import io.livekit.android.test.mock.MockEglBase
 import io.livekit.android.test.mock.e2ee.ReversingDataPacketCryptorManager
 import io.livekit.android.webrtc.PeerConnectionFactoryManager
 import io.livekit.android.webrtc.peerconnection.RTCThreadToken
+import org.mockito.kotlin.mock
 import livekit.org.webrtc.EglBase
 import livekit.org.webrtc.MediaStreamTrack
 import livekit.org.webrtc.MockPeerConnectionFactory
@@ -136,6 +139,18 @@ object TestRTCModule {
     fun dataPacketCryptorManagerFactory(): DataPacketCryptorManager.Factory = object : DataPacketCryptorManager.Factory {
         override fun create(keyProvider: KeyProvider): DataPacketCryptorManager {
             return ReversingDataPacketCryptorManager()
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun ttsignalConnector(): Connector = mock()
+
+    @Provides
+    fun signalTransportFactory(): SignalTransport.Factory {
+        // In test, we provide a mock factory that returns a mock transport.
+        return SignalTransport.Factory { _, _, _ ->
+            mock()
         }
     }
 }
