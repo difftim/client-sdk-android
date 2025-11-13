@@ -44,6 +44,8 @@ class QuicTransport(
     private var stream: Stream? = null
     private var listener: SignalTransport.Listener? = null
 
+    private val lock = Any()
+
     private val listenerExecutor: ExecutorService =
         Executors.newSingleThreadExecutor { r ->
             Thread(r, "QuicTransport-Listener-Thread-$attemptId").apply { isDaemon = true }
@@ -84,7 +86,9 @@ class QuicTransport(
                 LKLog.v { "[quic] onConnectResult: $errorCode, $message" }
                 executeOnListenerThread {
                     if (errorCode == 0) {
-                        this@QuicTransport.connection = conn
+                        synchronized(lock) {
+                            this@QuicTransport.connection = conn
+                        }
                     } else {
                         listener.onFailure(this@QuicTransport, TtsignalException("Connection failed: $message", errorCode), null)
                     }
@@ -94,7 +98,9 @@ class QuicTransport(
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
                 LKLog.v { "[quic] onStreamCreated: ${stream.id()}" }
                 executeOnListenerThread {
-                    this@QuicTransport.stream = stream
+                    synchronized(lock) {
+                        this@QuicTransport.stream = stream
+                    }
                     listener.onOpen(this@QuicTransport)
                 }
             }
@@ -102,8 +108,10 @@ class QuicTransport(
             override fun onStreamClosed(conn: Connection?, stream: Stream) {
                 LKLog.v { "onStreamClosed: ${stream.id()}" }
                 executeOnListenerThread {
-                    if (this@QuicTransport.stream?.id() == stream.id()) {
-                        this@QuicTransport.stream = null
+                    synchronized(lock) {
+                        if (this@QuicTransport.stream?.id() == stream.id()) {
+                            this@QuicTransport.stream = null
+                        }
                     }
                 }
             }
@@ -123,7 +131,9 @@ class QuicTransport(
                 LKLog.v { "onClosed: $reason" }
                 executeOnListenerThread {
                     listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
-                    cleanup()
+                    synchronized(lock) {
+                        cleanup()
+                    }
                 }
             }
 
@@ -131,7 +141,9 @@ class QuicTransport(
                 LKLog.e { "onException: $errorMsg" }
                 executeOnListenerThread {
                     listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
-                    cleanup()
+                    synchronized(lock) {
+                        cleanup()
+                    }
                 }
 
             }
@@ -155,24 +167,30 @@ class QuicTransport(
     }
 
     override fun send(data: ByteString): Boolean {
-        val stream = this.stream ?: return false.also { LKLog.w { "send called but stream is not available." } }
-        val bytes = data.toByteArray()
-        return stream.sendData(bytes) == 0
+        synchronized(lock) {
+            val stream = this.stream ?: return false.also { LKLog.w { "send called but stream is not available." } }
+            val bytes = data.toByteArray()
+            return stream.sendData(bytes) == 0
+        }
     }
 
     override fun close(code: Int, reason: String) {
         executeOnListenerThread {
             LKLog.v { "close connection..." }
-            connection?.close()
-            cleanup()
+            synchronized(lock) {
+                connection?.close()
+                cleanup()
+            }
         }
     }
 
     override fun cancel() {
         executeOnListenerThread {
             LKLog.v { "cancel connection..." }
-            connection?.close()
-            cleanup()
+            synchronized(lock) {
+                connection?.close()
+                cleanup()
+            }
         }
     }
 
