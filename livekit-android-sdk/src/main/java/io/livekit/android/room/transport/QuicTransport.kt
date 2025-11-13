@@ -19,6 +19,8 @@ package io.livekit.android.room.transport
 import android.net.Uri
 import io.livekit.android.ConnectOptions
 import io.livekit.android.util.LKLog
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import org.difft.android.smp.Config
@@ -29,10 +31,8 @@ import org.difft.android.smp.IConnectionHandler
 import org.difft.android.smp.Stream
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.RejectedExecutionException
 
 class QuicTransport(
@@ -139,20 +139,19 @@ class QuicTransport(
 
         this.connection = connector.createConnection(config, connectionHandler)
 
-        // The example auth string is a JSON object. We'll replicate that.
-        val authString = if (token.isNotEmpty()) {
-            "{\"Authorization\":\"Bearer $token\"}"
-        } else {
-            "{}"
+        val authObject = buildJsonObject {
+            if (token.isNotEmpty()) {
+                put("Authorization", "Bearer $token")
+            }
+            options.userAgent?.let { userAgent ->
+                if (userAgent.isNotEmpty()) {
+                    put("User-Agent", userAgent)
+                }
+            }
         }
 
-        val connectUrl = url.replaceFirst("wss", "https")
-//        val items = connectUrl.split('?')
-//        if (items.size > 1) {
-//            connectUrl = items[0] + "?" + URLEncoder.encode(items[1], "UTF-8")
-//        }
 
-        this.connection?.connect(connectUrl, authString)
+        this.connection?.connect(url.replaceFirst("wss", "https"), authObject.toString())
     }
 
     override fun send(data: ByteString): Boolean {

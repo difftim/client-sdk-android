@@ -21,9 +21,6 @@ import android.javax.sdp.SdpFactory
 import android.media.AudioAttributes
 import android.media.MediaRecorder
 import android.os.Build
-import org.difft.android.smp.Config
-import org.difft.android.smp.Connector
-import org.difft.android.smp.Const
 import dagger.Module
 import dagger.Provides
 import dagger.Reusable
@@ -65,6 +62,9 @@ import livekit.org.webrtc.VideoEncoderFactory
 import livekit.org.webrtc.audio.AudioDeviceModule
 import livekit.org.webrtc.audio.JavaAudioDeviceModule
 import okhttp3.OkHttpClient
+import org.difft.android.smp.Config
+import org.difft.android.smp.Connector
+import org.difft.android.smp.Const
 import javax.inject.Named
 import javax.inject.Singleton
 
