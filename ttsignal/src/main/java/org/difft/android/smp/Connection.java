@@ -1,7 +1,7 @@
 /// ////////////////////////////////////////////////////////////////////////////
 // file : Connection.java
 // author : antoniozhou
-/// ////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 package org.difft.android.smp;
 
@@ -17,7 +17,7 @@ public class Connection {
 
     private native long initialize(long handle, Connection self, IHandler handler);
 
-    private native int connect(long handle, String host, String props);
+    private native int connect(long handle, String host, String props, int timeoutInMs);
 
     private native int sendPacket(long handle, long packet);
 
@@ -111,11 +111,11 @@ public class Connection {
         this.handler = handler;
     }
 
-    public int connect(String host, String props) {
+    public int connect(String host, String props, int timeoutInMs) {
         if (isClosed()) {
             return -1;
         }
-        return connect(this.connectionHandle, host, props);
+        return connect(this.connectionHandle, host, props, timeoutInMs);
     }
 
     public boolean isClosed() {

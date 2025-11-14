@@ -163,7 +163,7 @@ class QuicTransport(
         }
 
 
-        this.connection?.connect(url.replaceFirst("wss", "https"), authObject.toString())
+        this.connection?.connect(url.replaceFirst("wss", "https"), authObject.toString(), 7 * 1000)
     }
 
     override fun send(data: ByteString): Boolean {
