@@ -187,7 +187,7 @@ internal constructor(
                                     .setResolutionStrategy(
                                         ResolutionStrategy(
                                             Size(captureFormat?.width ?: width, captureFormat?.height ?: height),
-                                            ResolutionStrategy.FALLBACK_RULE_NONE,
+                                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
                                         ),
                                     )
                                     .build(),

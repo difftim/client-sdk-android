@@ -143,7 +143,7 @@ constructor(
         return result
     }
 
-    private val negotiate = debounce<MediaConstraints?, Unit>(20, coroutineScope) {
+    val negotiate = debounce<MediaConstraints?, Unit>(20, coroutineScope) {
         if (it != null) {
             createAndSendOffer(it)
         } else {
