@@ -130,7 +130,7 @@ internal constructor(
             .mapNotNull { it as? LocalTrackPublication }
             .toList()
 
-    private val jobs = mutableMapOf<Any, Job>()
+    private val jobs = mutableMapOf<LocalTrackPublication, Job>()
 
     private val rpcHandlers = Collections.synchronizedMap(mutableMapOf<String, RpcHandler>()) // methodName to handler
     private val pendingAcks = Collections.synchronizedMap(mutableMapOf<String, PendingRpcAck>()) // requestId to pending ack
@@ -571,6 +571,10 @@ internal constructor(
             if (options.scalabilityMode == null) {
                 options = options.copy(scalabilityMode = "L3T3_KEY")
             }
+            // VP9/AV1 with screen sharing requires single spatial layer, always override
+            if (track.options.isScreencast) {
+                options = options.copy(scalabilityMode = "L1T3")
+            }
         }
         val encodings = computeVideoEncodings(track.options.isScreencast, track.dimensions, options)
         val videoLayers =
@@ -971,7 +975,7 @@ internal constructor(
         val publicationJob = jobs[publication]
         if (publicationJob != null) {
             publicationJob.cancel()
-            jobs.remove(publicationJob)
+            jobs.remove(publication)
         }
 
         val sid = publication.sid
@@ -1672,14 +1676,49 @@ internal constructor(
                 // We have the original track object reference, meaning we own it. Dispose here.
                 try {
                     track.dispose()
+                    if (track === defaultAudioTrack) {
+                        defaultAudioTrack = null
+                    } else if (track === defaultVideoTrack) {
+                        defaultVideoTrack = null
+                    }
                 } catch (e: Exception) {
                     LKLog.d(e) { "Exception thrown when cleaning up local participant track $pub:" }
                 }
             }
         }
-        defaultAudioTrack?.dispose()
+
+        // Dispose tracks that were saved for republishing but never got republished.
+        // This happens when reconnection fails after prepareForFullReconnect() was called.
+        val republishesToDispose = republishes?.toList() ?: emptyList()
+        for (pub in republishesToDispose) {
+            val track = pub.track
+            if (track != null) {
+                try {
+                    track.stop()
+                } catch (e: Exception) {
+                    LKLog.d(e) { "Exception stopping republish track:" }
+                }
+
+                try {
+                    track.dispose()
+                } catch (e: Exception) {
+                    LKLog.d(e) { "Exception disposing republish track:" }
+                }
+            }
+        }
+        republishes = null
+
+        try {
+            defaultAudioTrack?.dispose()
+        } catch (_: Exception) {
+            // Possible double dispose, ignore.
+        }
+        try {
+            defaultVideoTrack?.dispose()
+        } catch (_: Exception) {
+            // Possible double dispose, ignore.
+        }
         defaultAudioTrack = null
-        defaultVideoTrack?.dispose()
         defaultVideoTrack = null
     }
 
@@ -1855,6 +1894,13 @@ abstract class BaseAudioTrackPublishOptions {
      * red (Redundant Audio Data), enabled by default for mono tracks.
      */
     abstract val red: Boolean
+
+    /**
+     * preconnect buffer, starts the audio track and buffers it prior to connection,
+     * in order to send it to agents that connect afterwards. Improves perceived
+     * connection time.
+     */
+    abstract val preconnect: Boolean
 }
 
 enum class AudioPresets(
@@ -1876,6 +1922,7 @@ data class AudioTrackPublishDefaults(
     override val audioBitrate: Int? = AudioPresets.MUSIC.maxBitrate,
     override val dtx: Boolean = true,
     override val red: Boolean = true,
+    override val preconnect: Boolean = false,
 ) : BaseAudioTrackPublishOptions()
 
 /**
@@ -1888,7 +1935,7 @@ data class AudioTrackPublishOptions(
     override val red: Boolean = true,
     override val source: Track.Source? = null,
     override val stream: String? = null,
-    val preconnect: Boolean = false,
+    override val preconnect: Boolean = false,
 ) : BaseAudioTrackPublishOptions(), TrackPublishOptions {
     constructor(
         name: String? = null,

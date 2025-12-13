@@ -9,25 +9,29 @@
 <!--END_BANNER_IMAGE-->
 
 # Android Kotlin SDK for LiveKit
+
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.livekit/livekit-android/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.livekit/livekit-android)
+
 <!--BEGIN_DESCRIPTION-->
+
 Use this SDK to add realtime video, audio and data features to your Android/Kotlin app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
+
 <!--END_DESCRIPTION-->
 
 # Table of Contents
 
-- [Docs](#docs)
-- [Installation](#installation)
-- [Usage](#usage)
-    - [Permissions](#permissions)
-    - [Publishing camera and microphone](#publishing-camera-and-microphone)
-    - [Sharing screen](#sharing-screen)
-    - [Rendering subscribed tracks](#rendering-subscribed-tracks)
-    - [Audio modes](#audio-modes)
-    - [@FlowObservable](#flowobservable)
-- [Sample App](#sample-app)
-- [Dev Environment](#dev-environment)
-    - [Optional (Dev convenience)](#optional-dev-convenience)
+-   [Docs](#docs)
+-   [Installation](#installation)
+-   [Usage](#usage)
+    -   [Permissions](#permissions)
+    -   [Publishing camera and microphone](#publishing-camera-and-microphone)
+    -   [Sharing screen](#sharing-screen)
+    -   [Rendering subscribed tracks](#rendering-subscribed-tracks)
+    -   [Audio modes](#audio-modes)
+    -   [@FlowObservable](#flowobservable)
+-   [Sample App](#sample-app)
+-   [Dev Environment](#dev-environment)
+    -   [Optional (Dev convenience)](#optional-dev-convenience)
 
 ## Docs
 
@@ -44,10 +48,11 @@ at [https://docs.livekit.io/client-sdk-android/index.html](https://docs.livekit.
 ## Installation
 
 LiveKit for Android is available as a Maven package.
+
 ```groovy title="build.gradle"
 ...
 dependencies {
-  def livekit_version = "2.22.0.4"
+  def livekit_version = "2.23.1"
 
   implementation "org.difft.android.libraries:livekit-android:$livekit_version"
 
@@ -58,7 +63,7 @@ dependencies {
   implementation "io.livekit:livekit-android-track-processors:$livekit_version"
 
   // Snapshots of the latest development version are available at:
-  // implementation "org.difft.android.libraries:livekit-android:2.22.1-SNAPSHOT"
+  // implementation "org.difft.android.libraries:livekit-android:2.23.2-SNAPSHOT"
 }
 ```
 
@@ -240,8 +245,8 @@ participant.
 
 There are two more full featured video conferencing sample apps:
 
-- [Compose app](https://github.com/livekit/client-sdk-android/tree/main/sample-app-compose/src/main/java/io/livekit/android/composesample)
-- [Standard app](https://github.com/livekit/client-sdk-android/tree/main/sample-app/src/main/java/io/livekit/android/sample)
+-   [Compose app](https://github.com/livekit/client-sdk-android/tree/main/sample-app-compose/src/main/java/io/livekit/android/composesample)
+-   [Standard app](https://github.com/livekit/client-sdk-android/tree/main/sample-app/src/main/java/io/livekit/android/sample)
 
 They both use
 the [`CallViewModel`](https://github.com/livekit/client-sdk-android/blob/main/sample-app-common/src/main/java/io/livekit/android/sample/CallViewModel.kt)
@@ -251,15 +256,15 @@ app.
 The respective `ParticipantItem` class in each app is responsible for the displaying of each
 participant's UI.
 
-- [Compose `ParticipantItem`](https://github.com/livekit/client-sdk-android/blob/main/sample-app-compose/src/main/java/io/livekit/android/composesample/ParticipantItem.kt)
-- [Standard `ParticipantItem`](https://github.com/livekit/client-sdk-android/blob/main/sample-app/src/main/java/io/livekit/android/sample/ParticipantItem.kt)
+-   [Compose `ParticipantItem`](https://github.com/livekit/client-sdk-android/blob/main/sample-app-compose/src/main/java/io/livekit/android/composesample/ParticipantItem.kt)
+-   [Standard `ParticipantItem`](https://github.com/livekit/client-sdk-android/blob/main/sample-app/src/main/java/io/livekit/android/sample/ParticipantItem.kt)
 
 ## Dev Environment
 
 To develop the Android SDK or running the sample app directly from this repo, you'll need:
 
-- Clone the repo to your computer
-- Ensure the protocol submodule repo is initialized and updated
+-   Clone the repo to your computer
+-   Ensure the protocol submodule repo is initialized and updated
 
 ```
 git clone https://github.com/difftim/client-sdk-android.git
@@ -281,7 +286,9 @@ protoc_platform=osx-x86_64
 2. Add sources to Android Studio by pointing at the `webrtc/sdk/android` folder.
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
+
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>LiveKit SDKs</td><td><a href="https://github.com/livekit/client-sdk-js">Browser</a> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS/visionOS</a> · <b>Android</b> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a></td></tr><tr></tr>

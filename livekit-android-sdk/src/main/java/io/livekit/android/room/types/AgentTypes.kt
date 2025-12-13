@@ -16,10 +16,13 @@
 
 package io.livekit.android.room.types
 
+import android.annotation.SuppressLint
+import androidx.annotation.Keep
 import com.beust.klaxon.Converter
 import com.beust.klaxon.Json
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
+import kotlinx.serialization.Serializable
 
 private fun <T> Klaxon.convert(k: kotlin.reflect.KClass<*>, fromJson: (JsonValue) -> T, toJson: (T) -> String, isUnion: Boolean = false) =
     this.converter(
@@ -31,11 +34,12 @@ private fun <T> Klaxon.convert(k: kotlin.reflect.KClass<*>, fromJson: (JsonValue
         },
     )
 
-private val klaxon = Klaxon()
+internal val klaxon = Klaxon()
     .convert(AgentInput::class, { AgentInput.fromValue(it.string!!) }, { "\"${it.value}\"" })
     .convert(AgentOutput::class, { AgentOutput.fromValue(it.string!!) }, { "\"${it.value}\"" })
-    .convert(AgentState::class, { AgentState.fromValue(it.string!!) }, { "\"${it.value}\"" })
+    .convert(AgentSdkState::class, { AgentSdkState.fromValue(it.string!!) }, { "\"${it.value}\"" })
 
+@Keep
 data class AgentAttributes(
     @Json(name = "lk.agent.inputs")
     val lkAgentInputs: List<AgentInput>? = null,
@@ -44,7 +48,7 @@ data class AgentAttributes(
     val lkAgentOutputs: List<AgentOutput>? = null,
 
     @Json(name = "lk.agent.state")
-    val lkAgentState: AgentState? = null,
+    val lkAgentState: AgentSdkState? = null,
 
     @Json(name = "lk.publish_on_behalf")
     val lkPublishOnBehalf: String? = null,
@@ -56,6 +60,7 @@ data class AgentAttributes(
     }
 }
 
+@Keep
 enum class AgentInput(val value: String) {
     Audio("audio"),
     Text("text"),
@@ -71,6 +76,7 @@ enum class AgentInput(val value: String) {
     }
 }
 
+@Keep
 enum class AgentOutput(val value: String) {
     Audio("audio"),
     Transcription("transcription");
@@ -84,7 +90,9 @@ enum class AgentOutput(val value: String) {
     }
 }
 
-enum class AgentState(val value: String) {
+// Renamed from AgentState to AgentSdkState to avoid naming conflicts elsewhere.
+@Keep
+enum class AgentSdkState(val value: String) {
     Idle("idle"),
     Initializing("initializing"),
     Listening("listening"),
@@ -92,7 +100,7 @@ enum class AgentState(val value: String) {
     Thinking("thinking");
 
     companion object {
-        fun fromValue(value: String): AgentState = when (value) {
+        fun fromValue(value: String): AgentSdkState = when (value) {
             "idle" -> Idle
             "initializing" -> Initializing
             "listening" -> Listening
@@ -106,6 +114,9 @@ enum class AgentState(val value: String) {
 /**
  * Schema for transcription-related attributes
  */
+@Keep
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
 data class TranscriptionAttributes(
     /**
      * The segment id of the transcription

@@ -86,9 +86,10 @@ constructor(
     private var isReconnecting: Boolean = false
     var listener: Listener? = null
     internal var serverVersion: Semver? = null
+    internal var serverInfo: ServerInfo? = null
     private var lastUrl: String? = null
-    private var lastToken: String? = null
-    private var lastOptions: ConnectOptions? = null
+    internal var lastToken: String? = null
+    internal var lastOptions: ConnectOptions? = null
     private var lastRoomOptions: RoomOptions? = null
 
     // Correlate callbacks with the active connection attempt to avoid races
@@ -447,8 +448,8 @@ constructor(
         return SessionDescription(rtcSdpType, sd.sdp)
     }
 
-    fun sendOffer(offer: SessionDescription) {
-        val sd = offer.toProtoSessionDescription()
+    fun sendOffer(offer: SessionDescription, offerId: Int) {
+        val sd = offer.toProtoSessionDescription(offerId)
         val request = LivekitRtc.SignalRequest.newBuilder()
             .setOffer(sd)
             .build()
@@ -456,8 +457,8 @@ constructor(
         sendRequest(request)
     }
 
-    fun sendAnswer(answer: SessionDescription) {
-        val sd = answer.toProtoSessionDescription()
+    fun sendAnswer(answer: SessionDescription, offerId: Int) {
+        val sd = answer.toProtoSessionDescription(offerId)
         val request = LivekitRtc.SignalRequest.newBuilder()
             .setAnswer(sd)
             .build()
@@ -724,6 +725,10 @@ constructor(
                     LKLog.w(t) { "Thrown while trying to parse server version." }
                 }
                 LKLog.i { "[quic] joinResponse:  ${System.currentTimeMillis() - connectStartTime}" }
+                serverInfo = ServerInfo(
+                    edition = ServerInfo.Edition.fromProto(response.join.serverInfo.edition),
+                    version = serverVersion
+                )
                 joinContinuation?.resumeWith(Result.success(Either.Left(response.join)))
             } else if (response.hasLeave()) {
                 // Some reconnects may immediately send leave back without a join response first.
@@ -763,12 +768,14 @@ constructor(
         when (response.messageCase) {
             LivekitRtc.SignalResponse.MessageCase.ANSWER -> {
                 val sd = fromProtoSessionDescription(response.answer)
-                listener?.onAnswer(sd)
+                val offerId = response.answer.id
+                listener?.onServerAnswer(sd, offerId)
             }
 
             LivekitRtc.SignalResponse.MessageCase.OFFER -> {
                 val sd = fromProtoSessionDescription(response.offer)
-                listener?.onOffer(sd)
+                val offerId = response.offer.id
+                listener?.onServerOffer(sd, offerId)
             }
 
             LivekitRtc.SignalResponse.MessageCase.TRICKLE -> {
@@ -950,11 +957,12 @@ constructor(
         lastOptions = null
         lastRoomOptions = null
         serverVersion = null
+        serverInfo = null
     }
 
     interface Listener {
-        fun onAnswer(sessionDescription: SessionDescription)
-        fun onOffer(sessionDescription: SessionDescription)
+        fun onServerAnswer(sessionDescription: SessionDescription, offerId: Int)
+        fun onServerOffer(sessionDescription: SessionDescription, offerId: Int)
         fun onTrickle(candidate: IceCandidate, target: LivekitRtc.SignalTarget)
         fun onLocalTrackPublished(response: LivekitRtc.TrackPublishedResponse)
         fun onParticipantUpdate(updates: List<LivekitModels.ParticipantInfo>)
@@ -1036,4 +1044,26 @@ enum class ProtocolVersion(val value: Int) {
 
     // new leave request handling
     v13(13),
+}
+
+class ServerInfo(
+    val edition: Edition,
+    val version: Semver?,
+) {
+    enum class Edition {
+        STANDARD,
+        CLOUD,
+        UNKNOWN
+        ;
+
+        companion object {
+            fun fromProto(proto: LivekitModels.ServerInfo.Edition): Edition {
+                return when (proto) {
+                    LivekitModels.ServerInfo.Edition.Standard -> STANDARD
+                    LivekitModels.ServerInfo.Edition.Cloud -> CLOUD
+                    LivekitModels.ServerInfo.Edition.UNRECOGNIZED -> UNKNOWN
+                }
+            }
+        }
+    }
 }

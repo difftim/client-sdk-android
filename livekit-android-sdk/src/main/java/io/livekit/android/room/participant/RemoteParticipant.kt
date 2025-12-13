@@ -120,6 +120,7 @@ class RemoteParticipant(
                     trackInfo,
                     participant = this,
                     ioDispatcher = ioDispatcher,
+                    autoSubscribe = signalClient.lastOptions?.autoSubscribe ?: true
                 )
 
                 newTrackPublications[trackSid] = publication

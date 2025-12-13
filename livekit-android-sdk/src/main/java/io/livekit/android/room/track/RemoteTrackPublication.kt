@@ -35,6 +35,7 @@ class RemoteTrackPublication(
     participant: RemoteParticipant,
     @Named(InjectionNames.DISPATCHER_IO)
     private val ioDispatcher: CoroutineDispatcher,
+    autoSubscribe: Boolean,
 ) : TrackPublication(info, track, participant) {
 
     override var track: Track?
@@ -67,7 +68,8 @@ class RemoteTrackPublication(
 
     private var trackJob: Job? = null
 
-    private var unsubscribed: Boolean = false
+    var isDesired: Boolean = autoSubscribe
+        private set
     private var disabled: Boolean = false
     private var videoQuality: VideoQuality? = VideoQuality.HIGH
     private var videoDimensions: Track.Dimensions? = null
@@ -86,7 +88,7 @@ class RemoteTrackPublication(
      */
     override val subscribed: Boolean
         get() {
-            if (unsubscribed || !subscriptionAllowed) {
+            if (!isDesired || !subscriptionAllowed) {
                 return false
             }
             return super.subscribed
@@ -94,7 +96,7 @@ class RemoteTrackPublication(
 
     val subscriptionStatus: SubscriptionStatus
         get() {
-            return if (!unsubscribed || track == null) {
+            return if (!isDesired || track == null) {
                 SubscriptionStatus.UNSUBSCRIBED
             } else if (!subscriptionAllowed) {
                 SubscriptionStatus.SUBSCRIBED_AND_NOT_ALLOWED
@@ -122,14 +124,14 @@ class RemoteTrackPublication(
      * Subscribe or unsubscribe from this track
      */
     fun setSubscribed(subscribed: Boolean) {
-        unsubscribed = !subscribed
+        isDesired = subscribed
         val participant = this.participant.get() as? RemoteParticipant ?: return
         val participantTracks = with(LivekitModels.ParticipantTracks.newBuilder()) {
             participantSid = participant.sid.value
             addTrackSids(sid)
             build()
         }
-        participant.signalClient.sendUpdateSubscription(!unsubscribed, participantTracks)
+        participant.signalClient.sendUpdateSubscription(isDesired, participantTracks)
     }
 
     /**

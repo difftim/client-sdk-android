@@ -150,8 +150,12 @@ internal constructor(
             }
         }
     }
+
+    @Volatile
     internal var reconnectType: ReconnectType = ReconnectType.DEFAULT
     private var reconnectingJob: Job? = null
+
+    @Volatile
     private var fullReconnectOnNext = false
 
     private val pendingTrackResolvers: MutableMap<String, Continuation<LivekitModels.TrackInfo>> =
@@ -166,6 +170,9 @@ internal constructor(
 
     internal val serverVersion: Semver?
         get() = client.serverVersion
+
+    internal val serverInfo: ServerInfo?
+        get() = client.serverInfo
 
     private val publisherObserver = PublisherTransportObserver(this, client, rtcThreadToken)
     private val subscriberObserver = SubscriberTransportObserver(this, client, rtcThreadToken)
@@ -189,8 +196,11 @@ internal constructor(
     private val reliableReceivedState = TTLMap<String, Int>(RELIABLE_RECEIVE_STATE_TTL_MS)
 
     private var isSubscriberPrimary = false
+
+    @Volatile
     private var isClosed = true
 
+    @Volatile
     private var hasPublished = false
 
     private var coroutineScope = CloseableCoroutineScope(SupervisorJob() + ioDispatcher)
@@ -204,6 +214,12 @@ internal constructor(
      * this must be grabbed on the RTC thread to prevent deadlocks.
      */
     private var configurationLock = Mutex()
+
+    /**
+     * Prevents concurrent publisher negotiations which can cause ICE gathering
+     * race conditions and connection failures.
+     */
+    private val negotiatePublisherMutex = Mutex()
 
     init {
         client.listener = this
@@ -674,14 +690,18 @@ internal constructor(
     }
 
     internal fun negotiatePublisher() {
+        // Mark intent to publish before checking Signal state so reconnect() can
+        // re-trigger negotiation even if the first attempt occurs before Signal connects.
+        hasPublished = true
+
         if (!client.isConnected) {
             return
         }
 
-        hasPublished = true
-
         coroutineScope.launch {
-            publisher?.negotiateSync(getPublisherOfferConstraints())
+            negotiatePublisherMutex.withLock {
+                publisher?.negotiate?.invoke(getPublisherOfferConstraints())
+            }
         }
     }
 
@@ -993,12 +1013,10 @@ internal constructor(
 
     // ---------------------------------- SignalClient.Listener --------------------------------------//
 
-    override fun onAnswer(sessionDescription: SessionDescription) {
-        val signalingState = runBlocking { publisher?.signalingState() }
-        LKLog.v { "received server answer: ${sessionDescription.type}, $signalingState" }
+    override fun onServerAnswer(sessionDescription: SessionDescription, offerId: Int) {
+        LKLog.v { "received server answer: ${sessionDescription.type}, ${runBlocking { publisher?.signalingState() }}" }
         coroutineScope.launch {
-            LKLog.i { sessionDescription.toString() }
-            when (val outcome = publisher?.setRemoteDescription(sessionDescription).nullSafe()) {
+            when (val outcome = publisher?.setRemoteDescription(sessionDescription, offerId).nullSafe()) {
                 is Either.Left -> {
                     // do nothing.
                 }
@@ -1010,14 +1028,13 @@ internal constructor(
         }
     }
 
-    override fun onOffer(sessionDescription: SessionDescription) {
-        val signalingState = runBlocking { publisher?.signalingState() }
-        LKLog.v { "received server offer: ${sessionDescription.type}, $signalingState" }
+    override fun onServerOffer(sessionDescription: SessionDescription, offerId: Int) {
+        LKLog.v { "received server offer: ${sessionDescription.type}, ${runBlocking { publisher?.signalingState() }}" }
         coroutineScope.launch {
             run {
-                when (val outcome = subscriber?.setRemoteDescription(sessionDescription).nullSafe()) {
+                when (val outcome = subscriber?.setRemoteDescription(sessionDescription, offerId).nullSafe()) {
                     is Either.Right -> {
-                        LKLog.e { "error setting remote description for answer: ${outcome.value} " }
+                        LKLog.e { "error setting remote description for offer: ${outcome.value} " }
                         return@launch
                     }
 
@@ -1056,7 +1073,7 @@ internal constructor(
             if (isClosed) {
                 return@launch
             }
-            client.sendAnswer(answer)
+            client.sendAnswer(answer, offerId)
         }
     }
 
@@ -1286,10 +1303,6 @@ internal constructor(
                 -> {
                 LKLog.v { "invalid value for data packet" }
             }
-
-            LivekitModels.DataPacket.ValueCase.ENCRYPTED_PACKET -> {
-                // TODO
-            }
         }
     }
 
@@ -1330,11 +1343,13 @@ internal constructor(
                     .build()
             }
 
-        val dataChannelReceiveStates = this.reliableReceivedState.map { (participantSid, sequence) ->
-            with(LivekitRtc.DataChannelReceiveState.newBuilder()) {
-                publisherSid = participantSid
-                lastSeq = sequence
-                build()
+        val dataChannelReceiveStates = synchronized(reliableStateLock) {
+            this.reliableReceivedState.map { (participantSid, sequence) ->
+                with(LivekitRtc.DataChannelReceiveState.newBuilder()) {
+                    publisherSid = participantSid
+                    lastSeq = sequence
+                    build()
+                }
             }
         }
 
