@@ -32,6 +32,7 @@ import io.livekit.android.room.track.RemoteVideoTrack
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.util.LKLog
+import livekit.LivekitModels
 import livekit.org.webrtc.FrameCryptor
 import livekit.org.webrtc.FrameCryptor.FrameCryptionState
 import livekit.org.webrtc.FrameCryptorAlgorithm
@@ -104,10 +105,10 @@ constructor(
     }
 
     fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
-        // if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
-        //     LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
-        //     return
-        // }
+        if (publication.trackInfo?.encryption == LivekitModels.Encryption.Type.NONE) {
+            LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
+            return
+        }
 
         val rtpReceiver: RtpReceiver? = when (publication.track!!) {
             is RemoteAudioTrack -> (publication.track!! as RemoteAudioTrack).receiver
@@ -143,10 +144,10 @@ constructor(
     }
 
     fun addPublishedTrack(track: Track, publication: TrackPublication, participant: LocalParticipant, room: Room) {
-        // if (publication.trackInfo?.encryption == Encryption.Type.NONE) {
-        //     LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
-        //     return
-        // }
+        if (publication.trackInfo?.encryption == LivekitModels.Encryption.Type.NONE) {
+            LKLog.w { "addPublishedTrack: encryptionType is .none, skipping creating frame cryptor..." }
+            return
+        }
 
         val rtpSender: RtpSender? = when (publication.track!!) {
             is LocalAudioTrack -> (publication.track!! as LocalAudioTrack)?.sender
