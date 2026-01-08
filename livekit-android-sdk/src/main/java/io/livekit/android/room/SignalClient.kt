@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -727,7 +727,7 @@ constructor(
                 LKLog.i { "[quic] joinResponse:  ${System.currentTimeMillis() - connectStartTime}" }
                 serverInfo = ServerInfo(
                     edition = ServerInfo.Edition.fromProto(response.join.serverInfo.edition),
-                    version = serverVersion
+                    version = serverVersion,
                 )
                 joinContinuation?.resumeWith(Result.success(Either.Left(response.join)))
             } else if (response.hasLeave()) {
@@ -875,7 +875,7 @@ constructor(
 
             LivekitRtc.SignalResponse.MessageCase.MESSAGE_NOT_SET,
             null,
-                -> {
+            -> {
                 LKLog.v { "empty messageCase!" }
             }
 

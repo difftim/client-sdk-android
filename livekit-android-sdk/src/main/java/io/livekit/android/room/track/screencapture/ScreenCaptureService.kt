@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import io.livekit.android.room.track.screencapture.ScreenCaptureService.Companion.DEFAULT_NOTIFICATION_ID
 
 /**
  * A foreground service is required for screen capture on API level Q (29) and up.

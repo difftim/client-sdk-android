@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -369,7 +369,7 @@ constructor(
                 for (quality in qualities) {
                     val rid = EncodingUtils.ridForVideoQuality(quality.quality) ?: continue
                     val encoding = encodings.firstOrNull { it.rid == rid }
-                    // use low quality layer settings for non-simulcasted streams
+                        // use low quality layer settings for non-simulcasted streams
                         ?: encodings.takeIf { it.size == 1 && quality.quality == ProtoVideoQuality.LOW }?.first()
                         ?: continue
                     if (encoding.active != quality.enabled) {

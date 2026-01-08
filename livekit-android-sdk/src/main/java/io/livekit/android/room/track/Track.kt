@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ abstract class Track(
                     LivekitModels.TrackType.VIDEO -> VIDEO
                     LivekitModels.TrackType.DATA, // TODO: does this need to be handled?
                     LivekitModels.TrackType.UNRECOGNIZED,
-                        -> UNRECOGNIZED
+                    -> UNRECOGNIZED
                 }
             }
         }
@@ -135,7 +135,7 @@ abstract class Track(
                     LivekitModels.TrackSource.SCREEN_SHARE_AUDIO -> SCREEN_SHARE_AUDIO
                     LivekitModels.TrackSource.UNKNOWN,
                     LivekitModels.TrackSource.UNRECOGNIZED,
-                        -> UNKNOWN
+                    -> UNKNOWN
                 }
             }
         }

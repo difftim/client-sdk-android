@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ import okhttp3.OkHttpClient
 import org.difft.android.smp.Config
 import org.difft.android.smp.Connector
 import org.difft.android.smp.Const
+import timber.log.Timber
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -137,14 +138,16 @@ internal object RTCModule {
                                     }
 
                                     LKLog.log(loggingLevel) {
-                                        "[webrtc] $s2: $s".trimEnd('\r', '\n')
+                                        Timber.log(loggingLevel.toAndroidLogPriority(), "[webrtc] $s2: $s".trimEnd('\r', '\n'))
                                     }
                                 },
                                 when (LiveKit.loggingLevelWebRTC) {
                                     LoggingLevel.VERBOSE -> Logging.Severity.LS_VERBOSE
+                                    LoggingLevel.DEBUG -> Logging.Severity.LS_INFO
                                     LoggingLevel.INFO -> Logging.Severity.LS_INFO
                                     LoggingLevel.WARN -> Logging.Severity.LS_WARNING
                                     LoggingLevel.ERROR -> Logging.Severity.LS_ERROR
+                                    LoggingLevel.WTF -> Logging.Severity.LS_ERROR
                                     else -> Logging.Severity.LS_NONE
                                 },
                             )

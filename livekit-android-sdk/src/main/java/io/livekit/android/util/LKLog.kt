@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,94 +47,68 @@ Original repo can be found at: https://github.com/ajalt/LKLogkt
  */
 @Suppress("NOTHING_TO_INLINE", "unused")
 class LKLog {
-    interface LogCallback {
-        fun onLog(level: LoggingLevel, message: String?, throwable: Throwable?)
-    }
 
     companion object {
         var loggingLevel = OFF
-        var logCallback: LogCallback? = null
+        var externalPrefix: String? = null
 
-        @JvmStatic
-        fun registerLogCallback(callback: LogCallback) {
-            logCallback = callback
-        }
-
-        @JvmStatic
-        fun unregisterLogCallback() {
-            logCallback = null
+        inline fun withExternalPrefix(message: () -> String): String {
+            val prefix = externalPrefix
+            val msg = message()
+            return if (prefix == null || prefix.isEmpty()) msg else prefix + msg
         }
 
         /** Log a verbose exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun v(t: Throwable? = null, message: () -> String) =
-            log(VERBOSE, t) { message() }
+            log(VERBOSE) { Timber.v(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun v(t: Throwable?) = log(VERBOSE, t)
+        inline fun v(t: Throwable?) = log(VERBOSE) { Timber.v(t) }
 
         /** Log a debug exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun d(t: Throwable? = null, message: () -> String) =
-            log(DEBUG, t) { message() }
+            log(DEBUG) { Timber.d(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun d(t: Throwable?) = log(DEBUG, t)
+        inline fun d(t: Throwable?) = log(DEBUG) { Timber.d(t) }
 
         /** Log an info exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun i(t: Throwable? = null, message: () -> String) =
-            log(INFO, t) { message() }
+            log(INFO) { Timber.i(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun i(t: Throwable?) = log(INFO, t)
+        inline fun i(t: Throwable?) = log(INFO) { Timber.i(t) }
 
         /** Log a warning exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun w(t: Throwable? = null, message: () -> String) =
-            log(WARN) { message() }
+            log(WARN) { Timber.w(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun w(t: Throwable?) = log(WARN, t)
+        inline fun w(t: Throwable?) = log(WARN) { Timber.w(t) }
 
         /** Log an error exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun e(t: Throwable? = null, message: () -> String) =
-            log(ERROR, t) { message() }
+            log(ERROR) { Timber.e(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun e(t: Throwable?) = log(ERROR, t)
+        inline fun e(t: Throwable?) = log(ERROR) { Timber.e(t) }
 
         /** Log an assert exception and a message that will be evaluated lazily when the message is printed */
         @JvmStatic
         inline fun wtf(t: Throwable? = null, message: () -> String) =
-            log(WTF, t) { message() }
+            log(WTF) { Timber.wtf(t, withExternalPrefix(message)) }
 
         @JvmStatic
-        inline fun wtf(t: Throwable?) = log(WTF, t)
+        inline fun wtf(t: Throwable?) = log(WTF) { Timber.wtf(t) }
 
         /** @suppress */
-        inline fun log(loggingLevel: LoggingLevel, throwable: Throwable? = null, block: () -> String) {
-            if (loggingLevel >= LKLog.loggingLevel) {
-                val message = block()
-
-                logCallback?.onLog(loggingLevel, message, throwable)
-
-                if (logCallback == null && Timber.treeCount() > 0) {
-                    Timber.log(loggingLevel.toAndroidLogPriority(), throwable, message)
-                }
-            }
-        }
-
-        /** @suppress */
-        inline fun log(loggingLevel: LoggingLevel, throwable: Throwable?) {
-            if (loggingLevel >= LKLog.loggingLevel) {
-                logCallback?.onLog(loggingLevel, null, throwable)
-
-                if (logCallback == null && Timber.treeCount() > 0) {
-                    Timber.log(loggingLevel.toAndroidLogPriority(), throwable, null)
-                }
-            }
+        inline fun log(loggingLevel: LoggingLevel, block: () -> Unit) {
+            if (loggingLevel >= LKLog.loggingLevel && Timber.treeCount() > 0) block()
         }
     }
 }

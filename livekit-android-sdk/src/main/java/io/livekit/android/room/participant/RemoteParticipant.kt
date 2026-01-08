@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ class RemoteParticipant(
                     trackInfo,
                     participant = this,
                     ioDispatcher = ioDispatcher,
-                    autoSubscribe = signalClient.lastOptions?.autoSubscribe ?: true
+                    autoSubscribe = signalClient.lastOptions?.autoSubscribe ?: true,
                 )
 
                 newTrackPublications[trackSid] = publication

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -334,6 +334,6 @@ fun LivekitModels.DisconnectReason?.convert(): DisconnectReason {
         LivekitModels.DisconnectReason.UNKNOWN_REASON,
         LivekitModels.DisconnectReason.UNRECOGNIZED,
         null,
-            -> DisconnectReason.UNKNOWN_REASON
+        -> DisconnectReason.UNKNOWN_REASON
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,13 @@ object LiveKit {
         get() = LKLog.loggingLevel
         set(value) {
             LKLog.loggingLevel = value
+        }
+
+    @JvmStatic
+    var loggingExternalPrefix: String?
+        get() = LKLog.externalPrefix
+        set(value) {
+            LKLog.externalPrefix = value
         }
 
     private var _debugTree: Timber.DebugTree? = null
