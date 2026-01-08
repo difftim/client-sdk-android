@@ -105,6 +105,7 @@ constructor(
     }
 
     fun addSubscribedTrack(track: Track, publication: TrackPublication, participant: RemoteParticipant, room: Room) {
+        // allow rendering non-E2EE video streams when E2EE is enabled
         if (publication.trackInfo?.encryption == LivekitModels.Encryption.Type.NONE) {
             LKLog.w { "addSubscribedTrack: encryptionType is .none, skipping creating frame cryptor..." }
             return
