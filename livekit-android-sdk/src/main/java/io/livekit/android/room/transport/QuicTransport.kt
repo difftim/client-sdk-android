@@ -71,7 +71,8 @@ class QuicTransport(
         val uri = Uri.parse(url)
 
         val config = Config().apply {
-            idleTimeOut = 20000
+            idleTimeOut = 14000
+            pingInterval = 7000
             hostname = uri.host
             port = if (uri.port != -1) uri.port else 443
             maxConnections = 1
