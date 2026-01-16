@@ -355,6 +355,7 @@ constructor(
     var ttCallResp: LivekitTemptalk.TTCallResponse? by flowDelegate(null)
         private set
 
+    @Volatile
     private var hasLostConnectivity: Boolean = false
     private var connectOptions: ConnectOptions = ConnectOptions()
 
@@ -573,7 +574,12 @@ constructor(
         }
         connectJob.join()
 
-        error?.let { throw it }
+        error?.let {
+            if (it !is CancellationException) {
+                handleDisconnect(DisconnectReason.JOIN_FAILURE)
+            }
+            throw it
+        }
     }
 
     /**
@@ -1013,6 +1019,7 @@ constructor(
                     return@runBlocking
                 }
                 networkCallbackManager.unregisterCallback()
+                hasLostConnectivity = false
 
                 state = State.DISCONNECTED
                 cleanupRoom()
