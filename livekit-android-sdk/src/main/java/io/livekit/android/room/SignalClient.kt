@@ -79,7 +79,7 @@ constructor(
     @Named(InjectionNames.DISPATCHER_IO)
     private val ioDispatcher: CoroutineDispatcher,
     private val networkInfo: NetworkInfo,
-) : SignalTransport.Listener() {
+) : SignalTransport.Listener {
     @Volatile
     var isConnected = false
         private set

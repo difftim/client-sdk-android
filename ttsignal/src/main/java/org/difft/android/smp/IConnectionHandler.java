@@ -16,6 +16,8 @@ public interface IConnectionHandler {
 
     public void onRecvData(Connection conn, long timestamp, int transId, Stream stream, byte[] data);
 
+    public void onRestart(Connection conn, int result, String address);
+
     public void onClosed(Connection conn, String reason);
 
     public void onException(Connection conn, String errMsg);

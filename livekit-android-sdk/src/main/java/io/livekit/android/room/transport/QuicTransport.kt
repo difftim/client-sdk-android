@@ -84,7 +84,7 @@ class QuicTransport(
 
         val connectionHandler = object : IConnectionHandler {
             override fun onConnectResult(conn: Connection?, errorCode: Int, message: String?) {
-                LKLog.v { "[quic] onConnectResult: $errorCode, $message" }
+                LKLog.i { "[quic] onConnectResult: $errorCode, $message" }
                 executeOnListenerThread {
                     if (errorCode == 0) {
                         synchronized(lock) {
@@ -97,7 +97,7 @@ class QuicTransport(
             }
 
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
-                LKLog.v { "[quic] onStreamCreated: ${stream.id()}" }
+                LKLog.i { "[quic] onStreamCreated: ${stream.id()}" }
                 executeOnListenerThread {
                     synchronized(lock) {
                         this@QuicTransport.stream = stream
@@ -107,7 +107,7 @@ class QuicTransport(
             }
 
             override fun onStreamClosed(conn: Connection?, stream: Stream) {
-                LKLog.v { "onStreamClosed: ${stream.id()}" }
+                LKLog.i { "[quic] onStreamClosed: ${stream.id()}" }
                 executeOnListenerThread {
                     synchronized(lock) {
                         if (this@QuicTransport.stream?.id() == stream.id()) {
@@ -128,8 +128,12 @@ class QuicTransport(
                 }
             }
 
+            override fun onRestart(conn: Connection?, result: Int, address: String?) {
+                LKLog.i { "[quic] Restart result: $result, address: $address" }
+            }
+
             override fun onClosed(conn: Connection?, reason: String?) {
-                LKLog.v { "onClosed: $reason" }
+                LKLog.i { "[quic] onClosed: $reason" }
                 executeOnListenerThread {
                     listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
                     synchronized(lock) {
@@ -139,7 +143,7 @@ class QuicTransport(
             }
 
             override fun onException(conn: Connection?, errorMsg: String?) {
-                LKLog.e { "onException: $errorMsg" }
+                LKLog.e { "[quic] onException: $errorMsg" }
                 executeOnListenerThread {
                     listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
                     synchronized(lock) {
@@ -175,7 +179,7 @@ class QuicTransport(
 
     override fun close(code: Int, reason: String) {
         executeOnListenerThread {
-            LKLog.v { "close connection..." }
+            LKLog.i { "[quic] close connection..." }
             synchronized(lock) {
                 connection?.close()
                 cleanup()
@@ -185,7 +189,7 @@ class QuicTransport(
 
     override fun cancel() {
         executeOnListenerThread {
-            LKLog.v { "cancel connection..." }
+            LKLog.i { "[quic] cancel connection..." }
             synchronized(lock) {
                 connection?.close()
                 cleanup()

@@ -1,7 +1,7 @@
 /// ////////////////////////////////////////////////////////////////////////////
 // file : Connection.java
 // author : antoniozhou
-///////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////
 
 package org.difft.android.smp;
 
@@ -13,7 +13,6 @@ public class Connection {
     private long readyToDeleteHandle = 0;
     private IConnectionHandler handler;
     private HashMap<Integer, Stream> streams = new HashMap<Integer, Stream>();
-    private HashMap<Integer, Stream> streams2 = new HashMap<Integer, Stream>();
 
     private native long initialize(long handle, Connection self, IHandler handler);
 
@@ -22,6 +21,8 @@ public class Connection {
     private native int sendPacket(long handle, long packet);
 
     private native void closeStream(long handle, int streamId);
+
+    private native void restart(long handle);
 
     private native void close(long handle);
 
@@ -43,6 +44,8 @@ public class Connection {
         public void onRecvCmd(Connection conn, long timestamp, int transId, int streamId, byte[] data);
 
         public void onRecvData(Connection conn, long timestamp, int transId, int streamId, byte[] data);
+
+        public void onRestart(Connection conn, int result, String address);
 
         public void onClosed(Connection conn, String reason);
 
@@ -94,6 +97,11 @@ public class Connection {
                 if (stream != null) {
                     handler.onRecvData(conn, timestamp, transId, stream, buffer);
                 }
+            }
+
+            @Override
+            public void onRestart(Connection conn, int result, String address) {
+                handler.onRestart(conn, result, address);
             }
 
             @Override
@@ -173,6 +181,13 @@ public class Connection {
 
     public Object getUserObject() {
         return userObject;
+    }
+
+    public void restart(int streamId) {
+        if (isClosed()) {
+            return;
+        }
+        restart(this.connectionHandle);
     }
 
     public void close() {
