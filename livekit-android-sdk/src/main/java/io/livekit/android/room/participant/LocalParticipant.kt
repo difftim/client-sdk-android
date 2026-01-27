@@ -1625,16 +1625,17 @@ internal constructor(
         for (pub in publish) {
             val track = pub.track ?: continue
             unpublishTrack(track, false)
-            // Cannot publish muted tracks.
-            if (!pub.muted) {
-                val success = when (track) {
-                    is LocalAudioTrack -> publishAudioTrack(track, pub.options as AudioTrackPublishOptions, null)
-                    is LocalVideoTrack -> publishVideoTrack(track, pub.options as VideoTrackPublishOptions, null)
-                    else -> throw IllegalStateException("LocalParticipant has a non local track publish?")
+            // Video tracks cannot be published while muted, but audio tracks can be republished as a muted stream.
+            val success = when (track) {
+                is LocalAudioTrack -> publishAudioTrack(track, pub.options as AudioTrackPublishOptions, null, pub.muted)
+                is LocalVideoTrack -> if (pub.muted) true else {
+                    publishVideoTrack(track, pub.options as VideoTrackPublishOptions, null)
                 }
-                if (!success) {
-                    track.stop()
-                }
+
+                else -> throw IllegalStateException("LocalParticipant has a non local track publish?")
+            }
+            if (!success) {
+                track.stop()
             }
         }
     }

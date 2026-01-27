@@ -368,6 +368,10 @@ class CallViewModel(
                             LKLog.i { "TrackUnpublished: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] [screen:${it.participant.funIsScreenShareEnabled()}]" }
                         }
 
+                        is RoomEvent.TrackPublished -> {
+                            LKLog.i { "TrackPublished: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] [screen:${it.participant.funIsScreenShareEnabled()}]" }
+                        }
+
                         else -> {
                             Timber.i { "Room event: $it" }
                         }
