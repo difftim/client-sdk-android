@@ -35,6 +35,7 @@ import io.livekit.android.webrtc.toProtoSessionDescription
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
@@ -107,6 +108,7 @@ constructor(
 
     // join will always return a JoinResponse.
     // reconnect will return a ReconnectResponse or a Unit if a different response was received.
+    @Volatile
     private var joinContinuation: CancellableContinuation<
         Either<
             JoinResponse,
@@ -205,15 +207,40 @@ constructor(
         }
 
         connectStartTime = System.currentTimeMillis()
-        LKLog.i { "[quic] startConnect" }
-        val ret = try {
-            withTimeout(15 * 1000) {
-                suspendCancellableCoroutine<Either<JoinResponse, Either<ReconnectResponse, Unit>>> {
+
+        try {
+            LKLog.i { "[track-reconnect] connect - in, attempt=$attemptId" }
+            val ret = connectWithTimeout(15 * 1000, wsUrlString, token, options, attemptId, sendOnOpen)
+            LKLog.i { "[track-reconnect] connect - out, attempt=$attemptId" }
+            return ret
+        } catch (t: Throwable) {
+            LKLog.i { "[track-reconnect] connect - out with exception, attempt=$attemptId" }
+            throw t
+        }
+    }
+
+    private suspend fun connectWithTimeout(
+        timeMillis: Long,
+        url: String,
+        token: String,
+        options: ConnectOptions,
+        attemptId: Long,
+        sendOnOpen: ByteString?,
+    ): Either<JoinResponse, Either<ReconnectResponse, Unit>> {
+        return try {
+            withTimeout(timeMillis) {
+                suspendCancellableCoroutine { it ->
                     // Wait for join/reconnect response via WebSocketListener
                     joinContinuation = it
+
                     LKLog.i { "[track-reconnect] new transport created - beg, attempt=$attemptId" }
                     val newTransport = transportFactory.create(options, attemptId, sendOnOpen)
-                    newTransport.connect(wsUrlString, token, options, this@SignalClient)
+
+                    it.invokeOnCancellation {
+                        LKLog.i { "[track-reconnect] the coroutine is cancelled or times out" }
+                    }
+
+                    newTransport.connect(url, token, options, this@SignalClient)
                     transport = newTransport
                     LKLog.i { "[track-reconnect] new transport created - end, attempt=$attemptId, transport=$newTransport" }
                 }
@@ -226,13 +253,23 @@ constructor(
                 // Immediately close
                 localTransport.cancel()
             }
-            LKLog.i { "[track-reconnect] connect - out timeout exception, attempt=$attemptId" }
             throw t
         }
+    }
 
-        LKLog.i { "[track-reconnect] connect - out, attempt=$attemptId" }
-
-        return ret
+    @OptIn(InternalCoroutinesApi::class)
+    private fun failJoinContinuation(error: Throwable? = null) {
+        val cont = joinContinuation
+        if (cont != null) {
+            if (error != null) {
+                cont.tryResumeWithException(error)?.let { token ->
+                    cont.completeResume(token)
+                }
+            } else {
+                cont.cancel()
+            }
+        }
+        joinContinuation = null
     }
 
     private fun createConnectionParams(
@@ -404,13 +441,11 @@ constructor(
         if (error != null) {
             LKLog.e(t) { "transport failure(reason): $error" }
             listener?.onError(error)
-            joinContinuation?.cancel(error)
-            joinContinuation = null
+            failJoinContinuation(error)
         } else {
             LKLog.e(t) { "transport failure(response): $response" }
             listener?.onError(t)
-            joinContinuation?.cancel(t)
-            joinContinuation = null
+            failJoinContinuation(t)
         }
 
         val wasConnected = isConnected
@@ -433,10 +468,7 @@ constructor(
         pingJob?.cancel()
         pongJob?.cancel()
         // If connect() is still waiting, cancel it to avoid hanging
-        if (joinContinuation != null) {
-            joinContinuation?.cancel(Exception("websocket closed before connected: $reason (code=$code)"))
-            joinContinuation = null
-        }
+        failJoinContinuation(Exception("websocket closed before connected: $reason (code=$code)"))
         listener?.onClose(reason, code)
     }
 
@@ -951,8 +983,7 @@ constructor(
         transport = null
         holdingTs?.cancel()
 
-        joinContinuation?.cancel()
-        joinContinuation = null
+        failJoinContinuation()
         if (shouldClearQueuedRequests) {
             requestFlow.resetReplayCache()
         }
