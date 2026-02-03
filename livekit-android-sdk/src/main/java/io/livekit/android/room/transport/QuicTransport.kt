@@ -84,7 +84,7 @@ class QuicTransport(
 
         val connectionHandler = object : IConnectionHandler {
             override fun onConnectResult(conn: Connection?, errorCode: Int, message: String?) {
-                LKLog.i { "[quic] onConnectResult: $errorCode, $message" }
+                LKLog.i { "[quic] onConnectResult: $errorCode, $message, ${this@QuicTransport}" }
                 executeOnListenerThread {
                     if (errorCode == 0) {
                         synchronized(lock) {
@@ -97,7 +97,7 @@ class QuicTransport(
             }
 
             override fun onStreamCreated(conn: Connection?, stream: Stream) {
-                LKLog.i { "[quic] onStreamCreated: ${stream.id()}" }
+                LKLog.i { "[quic] onStreamCreated: ${stream.id()}, ${this@QuicTransport}" }
                 executeOnListenerThread {
                     synchronized(lock) {
                         this@QuicTransport.stream = stream
@@ -107,7 +107,7 @@ class QuicTransport(
             }
 
             override fun onStreamClosed(conn: Connection?, stream: Stream) {
-                LKLog.i { "[quic] onStreamClosed: ${stream.id()}" }
+                LKLog.i { "[quic] onStreamClosed: ${stream.id()}, ${this@QuicTransport}" }
                 executeOnListenerThread {
                     synchronized(lock) {
                         if (this@QuicTransport.stream?.id() == stream.id()) {
@@ -119,7 +119,7 @@ class QuicTransport(
 
             override fun onRecvCmd(conn: Connection?, timestamp: Long, transId: Int, stream: Stream?, buffer: ByteArray) {
                 val cmd = Charset.forName("UTF-8").decode(ByteBuffer.wrap(buffer)).toString()
-                LKLog.v { "CLI command content: $cmd" }
+                LKLog.v { "CLI command content: $cmd, ${this@QuicTransport}" }
             }
 
             override fun onRecvData(conn: Connection?, timestamp: Long, transId: Int, stream: Stream?, buffer: ByteArray) {
@@ -129,11 +129,11 @@ class QuicTransport(
             }
 
             override fun onRestart(conn: Connection?, result: Int, address: String?) {
-                LKLog.i { "[quic] Restart result: $result, address: $address" }
+                LKLog.i { "[quic] Restart result: $result, address: $address, ${this@QuicTransport}" }
             }
 
             override fun onClosed(conn: Connection?, reason: String?) {
-                LKLog.i { "[quic] onClosed: $reason" }
+                LKLog.i { "[quic] onClosed: $reason, ${this@QuicTransport}" }
                 executeOnListenerThread {
                     listener.onClosed(this@QuicTransport, 1000, reason ?: "Connection closed")
                     synchronized(lock) {
@@ -143,7 +143,7 @@ class QuicTransport(
             }
 
             override fun onException(conn: Connection?, errorMsg: String?) {
-                LKLog.e { "[quic] onException: $errorMsg" }
+                LKLog.e { "[quic] onException: $errorMsg, ${this@QuicTransport}" }
                 executeOnListenerThread {
                     listener.onFailure(this@QuicTransport, TtsignalException(errorMsg ?: "Unknown ttsignal exception"), null)
                     synchronized(lock) {
@@ -166,12 +166,15 @@ class QuicTransport(
             }
         }
 
-        this.connection?.connect(url.replaceFirst("wss", "https"), authObject.toString(), 7 * 1000)
+        val host = url.replaceFirst("wss", "https")
+        val props = authObject.toString()
+        LKLog.i { "[quic] connect: host=$host, props=$authObject, ${this@QuicTransport}" }
+        this.connection?.connect(host, props, 7 * 1000)
     }
 
     override fun send(data: ByteString): Boolean {
         synchronized(lock) {
-            val stream = this.stream ?: return false.also { LKLog.w { "send called but stream is not available." } }
+            val stream = this.stream ?: return false.also { LKLog.w { "send called but stream is not available., ${this@QuicTransport}" } }
             val bytes = data.toByteArray()
             return stream.sendData(bytes) == 0
         }
@@ -179,7 +182,7 @@ class QuicTransport(
 
     override fun close(code: Int, reason: String) {
         executeOnListenerThread {
-            LKLog.i { "[quic] close connection..." }
+            LKLog.i { "[quic] close connection..., ${this@QuicTransport}" }
             synchronized(lock) {
                 connection?.close()
                 cleanup()
@@ -189,7 +192,7 @@ class QuicTransport(
 
     override fun cancel() {
         executeOnListenerThread {
-            LKLog.i { "[quic] cancel connection..." }
+            LKLog.i { "[quic] cancel connection..., ${this@QuicTransport}" }
             synchronized(lock) {
                 connection?.close()
                 cleanup()
@@ -203,7 +206,7 @@ class QuicTransport(
     }
 
     override fun toString(): String {
-        return "${super.toString()}(attemptId=$attemptId)"
+        return "${javaClass.simpleName}@${Integer.toHexString(hashCode())}(attemptId=$attemptId)"
     }
 
     private fun executeOnListenerThread(block: () -> Unit) {

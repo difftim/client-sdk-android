@@ -80,6 +80,14 @@ typealias CapabilitiesGetter = @JvmSuppressWildcards (MediaStreamTrack.MediaType
 @Module
 internal object RTCModule {
 
+    private val QUIC_LOG_PREFIX_REGEX = Regex("""^[^\]]*\]\s+\[[^\]]*\]\s*(.*)$""")
+
+    private fun stripQuicLogPrefix(message: String): String {
+        val match = QUIC_LOG_PREFIX_REGEX.matchEntire(message)
+        val stripped = match?.groups?.get(1)?.value
+        return if (!stripped.isNullOrEmpty()) stripped else message
+    }
+
     /**
      * To only be written to on the WebRTC thread.
      */
@@ -172,8 +180,25 @@ internal object RTCModule {
         config.maxConnections = 1000
         config.congestCtrl = Const.CC_BBR2
         config.pingOn = true
-        config.logFile = "ttclient.log"
-        config.logLevel = Const.LOG_ERROR
+        config.logLevel = Const.LOG_DEBUG
+        config.logHandler = Config.LogHandler { level, msg ->
+            val loggingLevel = when (level) {
+                Const.LOG_DEBUG -> LoggingLevel.DEBUG
+                Const.LOG_INFO -> LoggingLevel.INFO
+                Const.LOG_WARN -> LoggingLevel.WARN
+                Const.LOG_ERROR -> LoggingLevel.ERROR
+                Const.LOG_FATAL -> LoggingLevel.ERROR
+                else -> LoggingLevel.INFO
+            }
+            LKLog.log(loggingLevel) {
+                try {
+                    val messageFormatted = stripQuicLogPrefix(msg)
+                    Timber.log(loggingLevel.toAndroidLogPriority(), LKLog.withExternalPrefix { "[quic] $messageFormatted" })
+                } catch (t: Throwable) {
+                    // do nothing
+                }
+            }
+        }
         return Connector(config)
     }
 

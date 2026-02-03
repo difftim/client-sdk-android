@@ -656,6 +656,8 @@ constructor(
             tmpTtCallResp = response.ttCallResponse
         }
 
+        LKLog.i { "[startcall] callOptions=${tmpTtCallResp?.callOptions}" }
+
         tmpTtCallResp?.body?.let { resp ->
             if (!resp.token.isEmpty()) {
                 LKLog.i { "[startcall] onRefreshToken by joinResponse" }
@@ -665,7 +667,6 @@ constructor(
             val encryptor = e2eeOptions?.ttEncryptor
             val manager = e2eeManager
             if (encryptor != null && manager != null) {
-                LKLog.i { "[startcall] Attempting to decrypt call key with publicKey=${resp.publicKey}, emk=${resp.emk}" }
                 val mk = encryptor.decryptCallKey(resp.publicKey, resp.emk)
                 if (mk != null) {
                     LKLog.i { "[startcall] Decrypted call key successfully, setting shared key." }

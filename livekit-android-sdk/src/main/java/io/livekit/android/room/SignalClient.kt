@@ -401,7 +401,7 @@ constructor(
 
     override fun onFailure(transport: SignalTransport, t: Throwable, response: Response?) {
         val stale = !isActiveTransport(transport)
-        LKLog.i { "[track-reconnect] transport failure \"${if (stale) "ignored (stale) " else ""}\" currentTs=${this.transport}, transport=$transport, response=$response" }
+        LKLog.i(t) { "[track-reconnect] transport failure \"${if (stale) "ignored (stale) " else ""}\" currentTs=${this.transport}, transport=$transport, response=$response" }
 
         if (stale) {
             return
@@ -434,16 +434,16 @@ constructor(
                 }
             }
         } catch (e: Throwable) {
-            LKLog.e(e) { "failed to validate connection" }
+            LKLog.e { "failed to validate connection" }
         }
 
         val error = exceptionError
         if (error != null) {
-            LKLog.e(t) { "transport failure(reason): $error" }
+            LKLog.e { "transport failure(reason): $error" }
             listener?.onError(error)
             failJoinContinuation(error)
         } else {
-            LKLog.e(t) { "transport failure(response): $response" }
+            LKLog.e { "transport failure(response): $response" }
             listener?.onError(t)
             failJoinContinuation(t)
         }

@@ -92,6 +92,6 @@ class WebSocketTransport(
     }
 
     override fun toString(): String {
-        return "${super.toString()}(attemptId=$attemptId)"
+        return "${javaClass.simpleName}@${Integer.toHexString(hashCode())}(attemptId=$attemptId)"
     }
 }

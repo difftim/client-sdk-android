@@ -7,6 +7,10 @@ package org.difft.android.smp;
 
 
 public class Config {
+    public interface LogHandler {
+        public void log(int level, String msg);
+    }
+
     // Connector use config properties
     public String hostname = "localhost";
     // Server use config properties
@@ -28,7 +32,8 @@ public class Config {
     public boolean pingOn = false;
     // ping interval, in milliseconds
     public int pingInterval = 10000;
-    public String logFile = "smp.log";
+    public String logFile = "";
+    public LogHandler logHandler = null;
     // Log level, error : E, info : I, debug : D, trace : T, warn : W
     public int logLevel = 0;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 LiveKit, Inc.
+ * Copyright 2023-2026 LiveKit, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,9 +57,9 @@ class CallActivity : AppCompatActivity() {
             quic = args.quicOn,
             stressTest = args.stressTest,
             application = application,
-             audioProcessorOptions = AudioProcessorOptions(
-                 capturePostProcessor = denoiser
-             )
+            audioProcessorOptions = AudioProcessorOptions(
+                capturePostProcessor = denoiser
+            )
         )
     }
     private lateinit var binding: CallActivityBinding
@@ -207,7 +207,6 @@ class CallActivity : AppCompatActivity() {
                 denoiser.setEnabled(true)
                 binding.noiseCtl.setText(io.livekit.android.sample.R.string.denoise_open)
             }
-
         }
 
         binding.audioSelect.setOnClickListener {

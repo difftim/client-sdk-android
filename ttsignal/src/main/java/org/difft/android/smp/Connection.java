@@ -74,7 +74,7 @@ public class Connection {
             @Override
             public void onStreamClosed(Connection conn, int streamId) {
                 // 流关闭时的处理逻辑
-                System.out.println("Raw QUIC 流关闭, stream id : " + streamId);
+                System.out.println("raw QUIC stream closed, stream id : " + streamId);
                 Stream stream = streams.remove(streamId);
                 if (stream != null) {
                     handler.onStreamClosed(conn, stream);
