@@ -88,6 +88,9 @@ object LiveKit {
     @JvmStatic
     var loggingLevelWebRTC: LoggingLevel = LoggingLevel.VERBOSE
 
+    @JvmStatic
+    var loggingLevelQuic: LoggingLevel = LoggingLevel.WARN
+
     /**
      * Certain WebRTC classes need to be initialized prior to use.
      *

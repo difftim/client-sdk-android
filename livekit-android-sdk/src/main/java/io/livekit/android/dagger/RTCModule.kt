@@ -137,27 +137,13 @@ internal object RTCModule {
                                         return@setInjectableLogger
                                     }
 
-                                    val loggingLevel = when (severity) {
-                                        Logging.Severity.LS_VERBOSE -> LoggingLevel.VERBOSE
-                                        Logging.Severity.LS_INFO -> LoggingLevel.INFO
-                                        Logging.Severity.LS_WARNING -> LoggingLevel.WARN
-                                        Logging.Severity.LS_ERROR -> LoggingLevel.ERROR
-                                        else -> LoggingLevel.OFF
-                                    }
+                                    val loggingLevel = severity.toLiveKitLogLevel()
 
                                     LKLog.log(loggingLevel) {
                                         Timber.log(loggingLevel.toAndroidLogPriority(), "[webrtc] $s2: $s".trimEnd('\r', '\n'))
                                     }
                                 },
-                                when (LiveKit.loggingLevelWebRTC) {
-                                    LoggingLevel.VERBOSE -> Logging.Severity.LS_VERBOSE
-                                    LoggingLevel.DEBUG -> Logging.Severity.LS_INFO
-                                    LoggingLevel.INFO -> Logging.Severity.LS_INFO
-                                    LoggingLevel.WARN -> Logging.Severity.LS_WARNING
-                                    LoggingLevel.ERROR -> Logging.Severity.LS_ERROR
-                                    LoggingLevel.WTF -> Logging.Severity.LS_ERROR
-                                    else -> Logging.Severity.LS_NONE
-                                },
+                                LiveKit.loggingLevelWebRTC.toWebrtcLogLevel(),
                             )
                             .createInitializationOptions(),
                     )
@@ -165,6 +151,39 @@ internal object RTCModule {
             }
         }
         return LibWebrtcInitialization
+    }
+
+    private fun Logging.Severity.toLiveKitLogLevel(): LoggingLevel = when (this) {
+        Logging.Severity.LS_VERBOSE -> LoggingLevel.VERBOSE
+        Logging.Severity.LS_INFO -> LoggingLevel.INFO
+        Logging.Severity.LS_WARNING -> LoggingLevel.WARN
+        Logging.Severity.LS_ERROR -> LoggingLevel.ERROR
+        else -> LoggingLevel.OFF
+    }
+
+    private fun fromQuicLogLevel(level: Int): LoggingLevel = when (level) {
+        Const.LOG_DEBUG -> LoggingLevel.DEBUG
+        Const.LOG_INFO -> LoggingLevel.INFO
+        Const.LOG_WARN -> LoggingLevel.WARN
+        Const.LOG_ERROR, Const.LOG_FATAL -> LoggingLevel.ERROR
+        else -> LoggingLevel.INFO
+    }
+
+    private fun LoggingLevel.toWebrtcLogLevel(): Logging.Severity = when (this) {
+        LoggingLevel.VERBOSE -> Logging.Severity.LS_VERBOSE
+        LoggingLevel.DEBUG, LoggingLevel.INFO -> Logging.Severity.LS_INFO
+        LoggingLevel.WARN -> Logging.Severity.LS_WARNING
+        LoggingLevel.ERROR, LoggingLevel.WTF -> Logging.Severity.LS_ERROR
+        else -> Logging.Severity.LS_NONE
+    }
+
+    private fun LoggingLevel.toQuicLogLevel(): Int = when (this) {
+        LoggingLevel.VERBOSE, LoggingLevel.DEBUG -> Const.LOG_DEBUG
+        LoggingLevel.INFO -> Const.LOG_INFO
+        LoggingLevel.WARN -> Const.LOG_WARN
+        LoggingLevel.ERROR -> Const.LOG_ERROR
+        LoggingLevel.WTF -> Const.LOG_FATAL
+        else -> Const.LOG_INFO
     }
 
     @Provides
@@ -180,16 +199,10 @@ internal object RTCModule {
         config.maxConnections = 1000
         config.congestCtrl = Const.CC_BBR2
         config.pingOn = true
-        config.logLevel = Const.LOG_DEBUG
+        config.logLevel = LiveKit.loggingLevelQuic.toQuicLogLevel()
         config.logHandler = Config.LogHandler { level, msg ->
-            val loggingLevel = when (level) {
-                Const.LOG_DEBUG -> LoggingLevel.DEBUG
-                Const.LOG_INFO -> LoggingLevel.INFO
-                Const.LOG_WARN -> LoggingLevel.WARN
-                Const.LOG_ERROR -> LoggingLevel.ERROR
-                Const.LOG_FATAL -> LoggingLevel.ERROR
-                else -> LoggingLevel.INFO
-            }
+            val loggingLevel = fromQuicLogLevel(level)
+
             LKLog.log(loggingLevel) {
                 try {
                     val messageFormatted = stripQuicLogPrefix(msg)

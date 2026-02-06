@@ -667,13 +667,17 @@ constructor(
             val encryptor = e2eeOptions?.ttEncryptor
             val manager = e2eeManager
             if (encryptor != null && manager != null) {
-                val mk = encryptor.decryptCallKey(resp.publicKey, resp.emk)
-                if (mk != null) {
-                    LKLog.i { "[startcall] Decrypted call key successfully, setting shared key." }
-                    manager.keyProvider().setSharedKey(mk)
-                    LKLog.i { "[startcall] setSharedKey completed." }
-                } else {
-                    LKLog.w { "[startcall] Failed to decrypt call key, shared key not set." }
+                try {
+                    val mk = encryptor.decryptCallKey(resp.publicKey, resp.emk)
+                    if (mk != null) {
+                        LKLog.i { "[startcall] Decrypted call key successfully, setting shared key." }
+                        manager.keyProvider().setSharedKey(mk)
+                        LKLog.i { "[startcall] setSharedKey completed." }
+                    } else {
+                        LKLog.w { "[startcall] Failed to decrypt call key, shared key not set." }
+                    }
+                } catch (e: Throwable) {
+                    LKLog.w { "[startcall] Failed to decrypt call key, shared key not set: ${e.message}" }
                 }
             } else {
                 LKLog.w { "[startcall] Encryptor or manager is null, cannot set shared key." }
