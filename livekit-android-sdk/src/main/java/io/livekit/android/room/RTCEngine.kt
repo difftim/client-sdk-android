@@ -657,9 +657,17 @@ internal constructor(
                     break
                 }
 
-                if (connectionState == ConnectionState.CONNECTED &&
-                    (!hasPublished || publisher?.isConnected() == true)
-                ) {
+                val publisherConnected = publisher?.isConnected() == true
+                val subscriberConnected = subscriber?.isConnected() == true
+                val reconnected = subscriberConnected && (!hasPublished || publisherConnected)
+                LKLog.i { "[${retries + 1}] reconnect-check subscriberConnected=$subscriberConnected, publisherConnected=$publisherConnected, hasPublished=$hasPublished, reconnected=$reconnected" }
+
+                if (reconnected) {
+                    if (connectionState != ConnectionState.CONNECTED) {
+                        LKLog.i { "[${retries + 1}] connectionState change $connectionState => CONNECTED" }
+                        // ICE restart may keep PC state as CONNECTED and never emit a fresh callback.
+                        connectionState = ConnectionState.CONNECTED
+                    }
                     if (lastMessageSeq != null) {
                         resendReliableMessagesForResume(lastMessageSeq)
                     }
