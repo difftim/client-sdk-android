@@ -171,6 +171,14 @@ class CallActivity : AppCompatActivity() {
             }
         }
 
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                viewModel.connectionStatus.collect { status ->
+                    binding.connectionStatus.text = status
+                }
+            }
+        }
+
         binding.message.setOnClickListener {
             val editText = EditText(this)
             AlertDialog.Builder(this)

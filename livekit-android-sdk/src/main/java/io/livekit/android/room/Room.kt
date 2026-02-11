@@ -1156,16 +1156,19 @@ constructor(
     private val networkCallbackManager = networkCallbackManagerFactory.invoke(
         object : NetworkCallback() {
             override fun onLost(network: Network) {
+                LKLog.i { "network connection onLost, hasLostConnectivity=$hasLostConnectivity, network=[${network}]" }
+
                 // lost connection, flip to reconnecting
                 hasLostConnectivity = true
             }
 
             override fun onAvailable(network: Network) {
+                LKLog.i { "network connection onAvailable, hasLostConnectivity=$hasLostConnectivity , network=[${network}]" }
                 // only actually reconnect after connection is re-established
                 if (!hasLostConnectivity) {
                     return
                 }
-                LKLog.i { "network connection available, reconnecting" }
+
                 hasLostConnectivity = false
                 reconnect()
             }

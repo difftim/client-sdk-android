@@ -8,7 +8,7 @@ androidx-camera = "1.4.2"
 androidx-core = "1.13.1"
 androidx-fragment = "1.5.1"
 androidx-lifecycle = "2.8.0"
-audioswitch = "89582c47c9a04c62f90aa5e57251af4800a62c9a"
+audioswitch = "1.2.1"
 autoService = '1.0.1'
 coroutines = "1.6.0"
 dagger = "2.46"
@@ -45,7 +45,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "androidx-fragment" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtx" }
 androidx-viewpager2 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
-audioswitch = { module = "com.github.davidliu:audioswitch", version.ref = "audioswitch" }
+audioswitch = { module = "org.difft.android.libraries:audioswitch", version.ref = "audioswitch" }
 dagger-lib = { module = "com.google.dagger:dagger", version.ref = "dagger" }
 dagger-compiler = { module = "com.google.dagger:dagger-compiler", version.ref = "dagger" }
 groupie = { module = "com.github.lisawray.groupie:groupie", version.ref = "groupie" }

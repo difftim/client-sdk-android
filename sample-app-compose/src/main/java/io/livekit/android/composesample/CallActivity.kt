@@ -120,6 +120,7 @@ class CallActivity : AppCompatActivity() {
             val videoEnabled by viewModel.cameraEnabled.collectAsState(true)
             val screencastEnabled by viewModel.screenshareEnabled.collectAsState(false)
             val permissionAllowed by viewModel.permissionAllowed.collectAsState()
+            val connectionStatus by viewModel.connectionStatus.collectAsState()
             Content(
                 room,
                 participants,
@@ -128,6 +129,7 @@ class CallActivity : AppCompatActivity() {
                 micEnabled,
                 videoEnabled,
                 screencastEnabled,
+                connectionStatus = connectionStatus,
                 audioSwitchHandler = viewModel.audioHandler,
                 permissionAllowed = permissionAllowed,
                 onExitClick = { finish() },
@@ -182,6 +184,7 @@ class CallActivity : AppCompatActivity() {
         micEnabled: Boolean = true,
         videoEnabled: Boolean = true,
         screencastEnabled: Boolean = false,
+        connectionStatus: String = "Connected",
         permissionAllowed: Boolean = true,
         audioSwitchHandler: AudioSwitchHandler? = null,
         onExitClick: () -> Unit = {},
@@ -200,7 +203,7 @@ class CallActivity : AppCompatActivity() {
                     .fillMaxSize()
                     .background(MaterialTheme.colors.background),
             ) {
-                val (speakerView, audienceRow, buttonBar) = createRefs()
+                val (speakerView, audienceRow, buttonBar, connectionStatusLabel) = createRefs()
 
                 // Primary speaker view
                 Surface(
@@ -221,6 +224,18 @@ class CallActivity : AppCompatActivity() {
                         )
                     }
                 }
+
+                Text(
+                    text = connectionStatus,
+                    style = MaterialTheme.typography.subtitle2,
+                    color = Color.White,
+                    modifier = Modifier
+                        .padding(start = 12.dp, top = 12.dp)
+                        .constrainAs(connectionStatusLabel) {
+                            top.linkTo(parent.top)
+                            start.linkTo(parent.start)
+                        },
+                )
 
                 // Audience row to display all participants.
                 LazyRow(

@@ -38,6 +38,11 @@ internal class PublisherTransportObserver(
     private val rtcThreadToken: RTCThreadToken,
 ) : PeerConnection.Observer, PeerConnectionTransport.Listener, PeerConnectionStateObservable {
 
+    private val observerTag = "pubObs@${Integer.toHexString(System.identityHashCode(this))}"
+    init {
+        LKLog.i { "[$observerTag] PublisherTransportObserver created" }
+    }
+
     var connectionChangeListener: PeerConnectionStateListener? = null
 
     @FlowObservable
@@ -60,7 +65,7 @@ internal class PublisherTransportObserver(
     }
 
     override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
-        LKLog.v { "onIceConnection new state: $newState" }
+        LKLog.i { "[$observerTag] onIceConnection new state: $newState" }
     }
 
     override fun onOffer(sd: SessionDescription, offerId: Int) {
@@ -74,8 +79,8 @@ internal class PublisherTransportObserver(
 
     override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {
         executeOnRTCThread(rtcThreadToken) {
-            LKLog.v { "onConnection new state: $newState" }
-            connectionChangeListener?.invoke(newState)
+            LKLog.i { "[$observerTag] onConnection new state: $newState" }
+            connectionChangeListener?.invoke(newState,observerTag)
             connectionState = newState
         }
     }

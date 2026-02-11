@@ -250,6 +250,9 @@ class CallViewModel(
     private val mutableError = MutableStateFlow<Throwable?>(null)
     val error = mutableError.hide()
 
+    private val mutableConnectionStatus = MutableStateFlow("Connecting")
+    val connectionStatus = mutableConnectionStatus.hide()
+
     private val mutablePrimarySpeaker = MutableStateFlow<Participant?>(null)
     val primarySpeaker: StateFlow<Participant?> = mutablePrimarySpeaker
 
@@ -327,7 +330,13 @@ class CallViewModel(
             launch {
                 room.events.collect {
                     when (it) {
-                        is RoomEvent.FailedToConnect -> mutableError.value = it.error
+                        is RoomEvent.FailedToConnect -> {
+                            mutableError.value = it.error
+                            mutableConnectionStatus.value = "Failed to connect"
+                        }
+                        is RoomEvent.Connected -> {
+                            mutableConnectionStatus.value = "Connected"
+                        }
                         is RoomEvent.DataReceived -> {
                             // Handling basic data packets.
                             val identity = it.participant?.identity ?: "server"
@@ -338,14 +347,17 @@ class CallViewModel(
 
                         is RoomEvent.Disconnected -> {
                             LKLog.e(it.error) { "Disconnected reason:${it.reason}" }
+                            mutableConnectionStatus.value = "Disconnected (${it.reason})"
                         }
 
                         is RoomEvent.Reconnecting -> {
                             LKLog.i { "Reconnecting" }
+                            mutableConnectionStatus.value = "Reconnecting"
                         }
 
                         is RoomEvent.Reconnected -> {
                             LKLog.i { "Reconnected" }
+                            mutableConnectionStatus.value = "Reconnected"
                         }
 
                         is RoomEvent.ParticipantDisconnected -> {
@@ -430,6 +442,7 @@ class CallViewModel(
 
     private suspend fun connectToRoom() {
         try {
+            mutableConnectionStatus.value = "Connecting"
             var tokenVer = if (BuildConfig.USE_MERGE_START_CALL) {
                 ""
             } else {
@@ -464,6 +477,7 @@ class CallViewModel(
             handlePrimarySpeaker(emptyList(), emptyList(), room)
         } catch (e: Throwable) {
             mutableError.value = e
+            mutableConnectionStatus.value = "Failed to connect"
         }
     }
 
@@ -614,6 +628,7 @@ class CallViewModel(
 
     fun reconnect() {
         Timber.e { "Reconnecting." }
+        mutableConnectionStatus.value = "Reconnecting"
         mutablePrimarySpeaker.value = null
         room.disconnect()
         viewModelScope.launch(Dispatchers.IO) {

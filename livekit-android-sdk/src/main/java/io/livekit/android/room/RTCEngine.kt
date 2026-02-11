@@ -62,7 +62,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -174,8 +173,8 @@ internal constructor(
     internal val serverInfo: ServerInfo?
         get() = client.serverInfo
 
-    private val publisherObserver = PublisherTransportObserver(this, client, rtcThreadToken)
-    private val subscriberObserver = SubscriberTransportObserver(this, client, rtcThreadToken)
+    private var publisherObserver: PublisherTransportObserver? = null
+    private var subscriberObserver: SubscriberTransportObserver? = null
 
     internal var publisher: PeerConnectionTransport? = null
     private var subscriber: PeerConnectionTransport? = null
@@ -223,6 +222,14 @@ internal constructor(
 
     init {
         client.listener = this
+    }
+
+    private fun createPublisherObserver(): PublisherTransportObserver {
+        return PublisherTransportObserver(this, client, rtcThreadToken)
+    }
+
+    private fun createSubscriberObserver(): SubscriberTransportObserver {
+        return SubscriberTransportObserver(this, client, rtcThreadToken)
     }
 
     suspend fun join(
@@ -294,21 +301,30 @@ internal constructor(
                 // Setup peer connections
                 val rtcConfig = makeRTCConfig(Either.Left(joinResponse), connectOptions)
 
+                val newPublisherObserver = createPublisherObserver()
+                val newSubscriberObserver = createSubscriberObserver()
+
                 publisher?.close()
-                publisher = pctFactory.create(
+                val newPublisher = pctFactory.create(
                     rtcConfig,
-                    publisherObserver,
-                    publisherObserver,
+                    newPublisherObserver,
+                    newPublisherObserver,
                 )
                 subscriber?.close()
-                subscriber = pctFactory.create(
+                val newSubscriber = pctFactory.create(
                     rtcConfig,
-                    subscriberObserver,
+                    newSubscriberObserver,
                     null,
                 )
+                publisher = newPublisher
+                subscriber = newSubscriber
+                publisherObserver = newPublisherObserver
+                subscriberObserver = newSubscriberObserver
 
-                val connectionStateListener: PeerConnectionStateListener = { newState ->
-                    LKLog.v { "onIceConnection new state: $newState" }
+                val connectionStateListener: PeerConnectionStateListener = { newState, tag ->
+                    val tagL = "listener${Integer.toHexString(System.identityHashCode(this))}"
+
+                    LKLog.v { "[$tagL, $tag] onIceConnection new state: $newState" }
                     if (newState.isConnected()) {
                         connectionState = ConnectionState.CONNECTED
                     } else if (newState.isDisconnected()) {
@@ -318,7 +334,7 @@ internal constructor(
 
                 if (joinResponse.subscriberPrimary) {
                     // in subscriber primary mode, server side opens sub data channels.
-                    subscriberObserver.dataChannelListener = onDataChannel@{ dataChannel: DataChannel ->
+                    newSubscriberObserver.dataChannelListener = onDataChannel@{ dataChannel: DataChannel ->
                         when (dataChannel.label()) {
                             RELIABLE_DATA_CHANNEL_LABEL -> reliableDataChannelSub = dataChannel
                             LOSSY_DATA_CHANNEL_LABEL -> lossyDataChannelSub = dataChannel
@@ -327,16 +343,17 @@ internal constructor(
                         dataChannel.registerObserver(DataChannelObserver(dataChannel))
                     }
 
-                    subscriberObserver.connectionChangeListener = connectionStateListener
+                    newSubscriberObserver.connectionChangeListener = connectionStateListener
                     // Also reconnect on publisher disconnect
-                    publisherObserver.connectionChangeListener = { newState ->
+                    newPublisherObserver.connectionChangeListener = { newState, tag ->
                         if (newState.isDisconnected()) {
-                            LKLog.i { "publisher disconnected" }
+                            val tagL = "listener${Integer.toHexString(System.identityHashCode(this))}"
+                            LKLog.i { "[$tagL, $tag] publisher disconnected" }
                             reconnect()
                         }
                     }
                 } else {
-                    publisherObserver.connectionChangeListener = connectionStateListener
+                    newPublisherObserver.connectionChangeListener = connectionStateListener
                 }
 
                 ensureActive()
@@ -471,12 +488,14 @@ internal constructor(
         executeBlockingOnRTCThread(rtcThreadToken) {
             runBlocking {
                 configurationLock.withLock {
-                    publisherObserver.connectionChangeListener = null
-                    subscriberObserver.connectionChangeListener = null
+                    publisherObserver?.connectionChangeListener = null
+                    subscriberObserver?.connectionChangeListener = null
                     publisher?.closeBlocking()
                     publisher = null
                     subscriber?.closeBlocking()
                     subscriber = null
+                    publisherObserver = null
+                    subscriberObserver = null
 
                     reliableBufferedAmountJob?.cancel()
                     reliableBufferedAmountJob = null
@@ -530,8 +549,6 @@ internal constructor(
             LKLog.w { "couldn't reconnect, no url or no token" }
             return
         }
-        val forceFullReconnect = fullReconnectOnNext
-        fullReconnectOnNext = false
         val job = coroutineScope.launch {
             var hasResumedOnce = false
             var hasReconnectedOnce = false
@@ -561,10 +578,20 @@ internal constructor(
                 if (startDelay > 5000) {
                     startDelay = 5000
                 }
+                if (fullReconnectOnNext) {
+                    LKLog.i { "[${retries + 1}] full reconnect requested, skipping reconnect delay." }
+                    startDelay = 0
+                }
 
                 LKLog.i { "[${retries + 1}] Reconnecting to signal, attempt ${retries + 1}, delay ${startDelay}ms" }
-                delay(startDelay)
+                if (startDelay > 0) {
+                    delay(startDelay)
+                }
 
+                val forceFullReconnect = fullReconnectOnNext
+                if (forceFullReconnect) {
+                    fullReconnectOnNext = false
+                }
                 val isFullReconnect = when (reconnectType) {
                     // full reconnect after first try.
                     ReconnectType.DEFAULT -> retries != 0 || forceFullReconnect
@@ -636,19 +663,47 @@ internal constructor(
                 // wait until publisher ICE connected
                 var publisherWaitJob: Job? = null
                 if (hasPublished) {
-                    publisherWaitJob = launch {
-                        publisherObserver.waitUntilConnected()
+                    val waitPublisherObserver = publisherObserver
+                    if (waitPublisherObserver != null) {
+                        publisherWaitJob = launch {
+                            waitPublisherObserver.waitUntilConnected()
+                        }
+                    } else {
+                        LKLog.w { "[${retries + 1}] publisher observer missing while waiting reconnect." }
                     }
                 }
 
                 // wait until subscriber ICE connected
-                val subscriberWaitJob = launch {
-                    subscriberObserver.waitUntilConnected()
+                val waitSubscriberObserver = subscriberObserver
+                val subscriberWaitJob = if (waitSubscriberObserver != null) {
+                    launch {
+                        waitSubscriberObserver.waitUntilConnected()
+                    }
+                } else {
+                    LKLog.w { "[${retries + 1}] subscriber observer missing while waiting reconnect." }
+                    null
                 }
 
-                withTimeoutOrNull(MAX_ICE_CONNECT_TIMEOUT_MS.toLong()) {
-                    listOfNotNull(publisherWaitJob, subscriberWaitJob)
-                        .joinAll()
+                val waitJobs = listOfNotNull(publisherWaitJob, subscriberWaitJob)
+                var interruptedForFullReconnect = false
+                val waitCompleted: Boolean = withTimeoutOrNull(MAX_ICE_CONNECT_TIMEOUT_MS.toLong()) {
+                    while (waitJobs.any { !it.isCompleted }) {
+                        // Server has asked for a full reconnect (e.g. STATE_MISMATCH):
+                        // stop waiting current ICE attempt and move to next reconnect loop.
+                        if (!isFullReconnect && fullReconnectOnNext) {
+                            interruptedForFullReconnect = true
+                            return@withTimeoutOrNull false
+                        }
+                        delay(50)
+                    }
+                    true
+                } ?: false
+                if (!waitCompleted) {
+                    waitJobs.forEach { it.cancel() }
+                }
+                if (interruptedForFullReconnect) {
+                    LKLog.i { "[${retries + 1}] full reconnect requested while waiting ICE; aborting current wait." }
+                    continue
                 }
 
                 ensureActive()
@@ -669,7 +724,13 @@ internal constructor(
                         connectionState = ConnectionState.CONNECTED
                     }
                     if (lastMessageSeq != null) {
-                        resendReliableMessagesForResume(lastMessageSeq)
+                        val resendResult = resendReliableMessagesForResume(lastMessageSeq)
+                        if (resendResult.isFailure) {
+                            LKLog.w(resendResult.exceptionOrNull()) {
+                                "[${retries + 1}] Failed to resend reliable messages after resume. Retrying reconnect."
+                            }
+                            continue
+                        }
                     }
                     // Is connected, notify and return.
                     regionUrlProvider?.clearAttemptedRegions()
@@ -782,7 +843,11 @@ internal constructor(
     }
 
     internal suspend fun resendReliableMessagesForResume(lastMessageSeq: Int): Result<Unit> {
-        ensurePublisherConnected(LivekitModels.DataPacket.Kind.RELIABLE)
+        try {
+            ensurePublisherConnected(LivekitModels.DataPacket.Kind.RELIABLE)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
         val channel = dataChannelForKind(LivekitModels.DataPacket.Kind.RELIABLE)
             ?: return Result.failure(NullPointerException("reliable channel not established!"))
 
@@ -841,6 +906,9 @@ internal constructor(
         // wait until publisher ICE connected
         val endTime = SystemClock.elapsedRealtime() + MAX_ICE_CONNECT_TIMEOUT_MS
         while (SystemClock.elapsedRealtime() < endTime) {
+            if (fullReconnectOnNext) {
+                throw RoomException.ConnectException("publisher reconnect superseded by full reconnect")
+            }
             if (publisher?.isConnected() == true && targetChannel.state() == DataChannel.State.OPEN) {
                 return
             }
@@ -1165,17 +1233,23 @@ internal constructor(
 
         when {
             leave.action == LeaveRequest.Action.RESUME -> {
-                // resume will be triggered on close.
-                // TODO: trigger immediately.
+                // Trigger resume immediately instead of waiting for onClose.
                 fullReconnectOnNext = false
+                coroutineScope.launch {
+                    yield()
+                    reconnect()
+                }
             }
 
             leave.action == LeaveRequest.Action.RECONNECT ||
                 // canReconnect is deprecated protocol version >= 13
                 leave.canReconnect -> {
-                // resume will be triggered on close.
-                // TODO: trigger immediately.
+                // Trigger full reconnect immediately instead of waiting for onClose.
                 fullReconnectOnNext = true
+                coroutineScope.launch {
+                    yield()
+                    reconnect()
+                }
             }
 
             else -> {
@@ -1460,7 +1534,7 @@ fun LivekitRtc.ICEServer.toWebrtc(): PeerConnection.IceServer = PeerConnection.I
     .setTlsEllipticCurves(emptyList())
     .createIceServer()
 
-typealias PeerConnectionStateListener = (PeerConnectionState) -> Unit
+typealias PeerConnectionStateListener = (PeerConnectionState, String) -> Unit
 
 internal fun LivekitModels.DataPacket.asEncryptedPacketPayload(): LivekitModels.EncryptedPacketPayload? {
     return when (valueCase) {

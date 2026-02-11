@@ -41,6 +41,11 @@ class SubscriberTransportObserver(
     private val rtcThreadToken: RTCThreadToken,
 ) : PeerConnection.Observer, PeerConnectionStateObservable {
 
+    private val observerTag = "subObs@${Integer.toHexString(System.identityHashCode(this))}"
+    init {
+        LKLog.i { "[$observerTag] SubscriberTransportObserver created" }
+    }
+
     var dataChannelListener: ((DataChannel) -> Unit)? = null
     var connectionChangeListener: PeerConnectionStateListener? = null
 
@@ -51,7 +56,7 @@ class SubscriberTransportObserver(
 
     override fun onIceCandidate(candidate: IceCandidate) {
         executeOnRTCThread(rtcThreadToken) {
-            LKLog.v { "onIceCandidate: $candidate" }
+            LKLog.i { "[$observerTag] onIceCandidate: $candidate" }
             client.sendCandidate(candidate, LivekitRtc.SignalTarget.SUBSCRIBER)
         }
     }
@@ -59,7 +64,7 @@ class SubscriberTransportObserver(
     override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {
         executeOnRTCThread(rtcThreadToken) {
             val track = receiver.track() ?: return@executeOnRTCThread
-            LKLog.v { "onAddTrack: ${track.kind()}, ${track.id()}, ${streams.fold("") { sum, it -> "$sum, $it" }}" }
+            LKLog.i { "[$observerTag] onAddTrack: ${track.kind()}, ${track.id()}, ${streams.fold("") { sum, it -> "$sum, $it" }}" }
             engine.listener?.onAddTrack(receiver, track, streams)
         }
     }
@@ -83,8 +88,8 @@ class SubscriberTransportObserver(
 
     override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {
         executeOnRTCThread(rtcThreadToken) {
-            LKLog.v { "onConnectionChange new state: $newState" }
-            connectionChangeListener?.invoke(newState)
+            LKLog.i { "[$observerTag] onConnectionChange new state: $newState" }
+            connectionChangeListener?.invoke(newState, observerTag)
             connectionState = newState
         }
     }
@@ -96,7 +101,7 @@ class SubscriberTransportObserver(
     }
 
     override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
-        LKLog.v { "onIceConnection new state: $newState" }
+        LKLog.i { "[$observerTag] onIceConnection new state: $newState" }
     }
 
     override fun onIceConnectionReceivingChange(p0: Boolean) {
