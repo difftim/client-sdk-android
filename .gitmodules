@@ -1,3 +1,6 @@
 [submodule "protocol"]
 	path = protocol
-	url = git@github.com:chative/protocol.git
+	url = https://github.com/TempTalkOrg/livekit-protocol.git
+[submodule "ttsignal/ttsignal"]
+	path = ttsignal/ttsignal
+	url = https://github.com/TempTalkOrg/ttsignal.git

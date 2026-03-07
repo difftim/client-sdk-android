@@ -6,6 +6,7 @@ plugins {
 android {
     namespace 'org.difft.android.smp'
     compileSdkVersion androidSdk.compileVersion
+    ndkVersion '29.0.14206865'
 
     defaultConfig {
         minSdkVersion androidSdk.minVersion
@@ -34,6 +35,57 @@ android {
         singleVariant("release") {
             withJavadocJar()
             withSourcesJar()
+        }
+    }
+}
+
+tasks.register('buildNativeLibs', Exec) {
+    description = 'Build native .so libraries and copy to jniLibs'
+    workingDir file('ttsignal')
+
+    def sdkDir = android.sdkDirectory
+    def ndkDir = android.ndkDirectory
+    environment 'ANDROID_HOME', sdkDir.absolutePath
+    environment 'ANDROID_SDK_ROOT', sdkDir.absolutePath
+    environment 'ANDROID_NDK_HOME', ndkDir.absolutePath
+
+    commandLine 'bash', 'android/scripts/build-so.sh'
+
+    doLast {
+        def abis = ['arm64-v8a', 'armeabi-v7a']
+        def destRoot = file('src/main/jniLibs')
+        def sourceRoot = file('ttsignal')
+
+        abis.each { abi ->
+            def destDir = new File(destRoot, abi)
+            destDir.mkdirs()
+
+            def candidates = [
+                "android/libs/${abi}/libsignal.so",
+                "build/android/${abi}/libsignal.so",
+                "output/${abi}/libsignal.so",
+                "target/${abi}/libsignal.so",
+            ]
+
+            def found = candidates.collect { new File(sourceRoot, it) }
+                .find { it.exists() }
+
+            if (found == null) {
+                def tree = fileTree(sourceRoot) {
+                    include "**/${abi}/libsignal.so"
+                }
+                found = tree.files.find()
+            }
+
+            if (found == null) {
+                throw new GradleException("libsignal.so for ${abi} not found")
+            }
+
+            copy {
+                from found
+                into destDir
+            }
+            println "copied: ${found} -> ${destDir}/libsignal.so"
         }
     }
 }
