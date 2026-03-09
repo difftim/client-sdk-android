@@ -36,6 +36,12 @@ android {
             includeAndroidResources = true
         }
     }
+    publishing {
+        singleVariant("release") {
+            withJavadocJar()
+            withSourcesJar()
+        }
+    }
 }
 
 dokkaHtml {
@@ -105,11 +111,6 @@ afterEvaluate {
                 groupId = GROUP
                 artifactId = POM_ARTIFACT_ID
                 version = VERSION_NAME
-            }
-        }
-        repositories {
-            maven {
-                url = uri("~/workspace/project/AndroidRepo")
             }
         }
     }

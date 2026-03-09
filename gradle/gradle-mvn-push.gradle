@@ -20,7 +20,12 @@
  */
 
 apply plugin: 'maven-publish'
-apply plugin: 'signing'
+
+def isJitPack = System.getenv("JITPACK") == "true"
+
+if (!isJitPack) {
+    apply plugin: 'signing'
+}
 
 version = VERSION_NAME
 group = GROUP
@@ -80,16 +85,18 @@ def configurePom(pom) {
 }
 
 afterEvaluate { project ->
-    publishing {
-        repositories {
-            maven {
-                def releasesRepoUrl = getReleaseRepositoryUrl()
-                def snapshotsRepoUrl = getSnapshotRepositoryUrl()
-                url = isReleaseBuild() ? releasesRepoUrl : snapshotsRepoUrl
+    if (!isJitPack) {
+        publishing {
+            repositories {
+                maven {
+                    def releasesRepoUrl = getReleaseRepositoryUrl()
+                    def snapshotsRepoUrl = getSnapshotRepositoryUrl()
+                    url = isReleaseBuild() ? releasesRepoUrl : snapshotsRepoUrl
 
-                credentials(PasswordCredentials) {
-                    username = getRepositoryUsername()
-                    password = getRepositoryPassword()
+                    credentials(PasswordCredentials) {
+                        username = getRepositoryUsername()
+                        password = getRepositoryPassword()
+                    }
                 }
             }
         }
@@ -131,14 +138,6 @@ afterEvaluate { project ->
         }
     }
 
-//    artifacts {
-//        if (project.getPlugins().hasPlugin('com.android.application') ||
-//                project.getPlugins().hasPlugin('com.android.library')) {
-//            archives androidSourcesJar
-//            archives androidJavadocsJar
-//        }
-//    }
-
     android.libraryVariants.all { variant ->
         tasks.androidJavadocs.doFirst {
             classpath += files(variant.javaCompileProvider.get().classpath.files.join(File.pathSeparator))
@@ -149,13 +148,10 @@ afterEvaluate { project ->
         publication.groupId = GROUP
         publication.version = VERSION_NAME
 
-//        publication.artifact androidSourcesJar
-//        publication.artifact androidJavadocsJar
-
         configurePom(publication.pom)
     }
 
-    if (getReleaseSigningEnabled()) {
+    if (!isJitPack && getReleaseSigningEnabled()) {
         signing {
             publishing.publications.all { publication ->
                 sign publication

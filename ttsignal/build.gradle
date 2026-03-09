@@ -41,7 +41,20 @@ android {
 
 tasks.register('buildNativeLibs', Exec) {
     description = 'Build native .so libraries and copy to jniLibs'
-    workingDir file('ttsignal')
+
+    def submoduleDir = file('ttsignal')
+    def buildScript = file('ttsignal/android/scripts/build-so.sh')
+
+    onlyIf {
+        if (!buildScript.exists()) {
+            throw new GradleException(
+                'ttsignal submodule not initialized. ' +
+                'Run: git submodule update --init ttsignal/ttsignal')
+        }
+        return true
+    }
+
+    workingDir submoduleDir
 
     def sdkDir = android.sdkDirectory
     def ndkDir = android.ndkDirectory
@@ -54,7 +67,6 @@ tasks.register('buildNativeLibs', Exec) {
     doLast {
         def abis = ['arm64-v8a', 'armeabi-v7a']
         def destRoot = file('src/main/jniLibs')
-        def sourceRoot = file('ttsignal')
 
         abis.each { abi ->
             def destDir = new File(destRoot, abi)
@@ -63,22 +75,23 @@ tasks.register('buildNativeLibs', Exec) {
             def candidates = [
                 "android/libs/${abi}/libsignal.so",
                 "build/android/${abi}/libsignal.so",
+                "build/${abi}/libsignal.so",
                 "output/${abi}/libsignal.so",
                 "target/${abi}/libsignal.so",
             ]
 
-            def found = candidates.collect { new File(sourceRoot, it) }
+            def found = candidates.collect { new File(submoduleDir, it) }
                 .find { it.exists() }
 
             if (found == null) {
-                def tree = fileTree(sourceRoot) {
+                def tree = fileTree(submoduleDir) {
                     include "**/${abi}/libsignal.so"
                 }
                 found = tree.files.find()
             }
 
             if (found == null) {
-                throw new GradleException("libsignal.so for ${abi} not found")
+                throw new GradleException("libsignal.so for ${abi} not found under ${submoduleDir}")
             }
 
             copy {
@@ -90,9 +103,13 @@ tasks.register('buildNativeLibs', Exec) {
     }
 }
 
+tasks.configureEach { task ->
+    if (task.name == 'mergeReleaseJniLibFolders' || task.name == 'mergeDebugJniLibFolders') {
+        task.dependsOn 'buildNativeLibs'
+    }
+}
+
 dependencies {
-    implementation libs.appcompat
-    implementation libs.material
     testImplementation libs.junit
     androidTestImplementation libs.androidx.test.junit
     androidTestImplementation libs.espresso
@@ -106,11 +123,6 @@ afterEvaluate {
                 groupId = GROUP
                 artifactId = POM_ARTIFACT_ID
                 version = VERSION_NAME
-            }
-        }
-        repositories {
-            maven {
-                url = uri("~/workspace/project/AndroidRepo")
             }
         }
     }
