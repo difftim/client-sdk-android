@@ -25,7 +25,6 @@ import io.livekit.android.dagger.create
 import io.livekit.android.room.Room
 import io.livekit.android.util.LKLog
 import io.livekit.android.util.LoggingLevel
-import timber.log.Timber
 
 /**
  * The main entry point into using LiveKit.
@@ -52,30 +51,17 @@ object LiveKit {
             LKLog.externalPrefix = value
         }
 
-    private var _debugTree: Timber.DebugTree? = null
-    fun setLogToDebug(enabled: Boolean) {
-        if (enabled) {
-            // Plant debug tree if needed.
-            if (loggingLevel != LoggingLevel.OFF) {
-                val forest = Timber.forest()
-                val needsPlanting = forest.none { it is Timber.DebugTree }
-
-                if (needsPlanting) {
-                    if (_debugTree == null) {
-                        _debugTree = Timber.DebugTree()
-                    }
-                    Timber.plant(_debugTree)
-                }
-            }
-        } else {
-            if (_debugTree == null) {
-                return
-            }
-
-            Timber.uproot(_debugTree!!)
-            _debugTree = null
+    /**
+     * The [LKLog.Logger] to use for Livekit logs.
+     *
+     * Default implementation prints to logcat.
+     */
+    @JvmStatic
+    var logger: LKLog.Logger?
+        get() = LKLog.logger
+        set(value) {
+            LKLog.logger = value
         }
-    }
 
     /**
      * Enables logs for the underlying WebRTC sdk logging. Used in conjunction with [loggingLevel].

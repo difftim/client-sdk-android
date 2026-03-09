@@ -65,7 +65,6 @@ import okhttp3.OkHttpClient
 import org.difft.android.smp.Config
 import org.difft.android.smp.Connector
 import org.difft.android.smp.Const
-import timber.log.Timber
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -139,9 +138,7 @@ internal object RTCModule {
 
                                     val loggingLevel = severity.toLiveKitLogLevel()
 
-                                    LKLog.log(loggingLevel) {
-                                        Timber.log(loggingLevel.toAndroidLogPriority(), "[webrtc] $s2: $s".trimEnd('\r', '\n'))
-                                    }
+                                    LKLog.log(loggingLevel, null) { "[webrtc] $s2: $s".trimEnd('\r', '\n') }
                                 },
                                 LiveKit.loggingLevelWebRTC.toWebrtcLogLevel(),
                             )
@@ -203,14 +200,15 @@ internal object RTCModule {
         config.logHandler = Config.LogHandler { level, msg ->
             val loggingLevel = fromQuicLogLevel(level)
 
-            LKLog.log(loggingLevel) {
-                try {
-                    val messageFormatted = stripQuicLogPrefix(msg)
-                    Timber.log(loggingLevel.toAndroidLogPriority(), LKLog.withExternalPrefix { "[quic] $messageFormatted" })
-                } catch (t: Throwable) {
-                    // do nothing
+            try {
+                val messageFormatted = stripQuicLogPrefix(msg)
+                LKLog.log(loggingLevel, null) {
+                    LKLog.withExternalPrefix { "[quic] $messageFormatted" }
                 }
+            } catch (t: Throwable) {
+                // do nothing
             }
+
         }
         return Connector(config)
     }

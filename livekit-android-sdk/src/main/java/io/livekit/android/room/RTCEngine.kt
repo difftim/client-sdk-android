@@ -660,33 +660,35 @@ internal constructor(
                     break
                 }
 
-                // wait until publisher ICE connected
-                var publisherWaitJob: Job? = null
-                if (hasPublished) {
-                    val waitPublisherObserver = publisherObserver
-                    if (waitPublisherObserver != null) {
-                        publisherWaitJob = launch {
-                            waitPublisherObserver.waitUntilConnected()
+                var interruptedForFullReconnect = false
+                var waitJobs = emptyList<Job>()
+                val waitCompleted: Boolean = withTimeoutOrNull(MAX_ICE_CONNECT_TIMEOUT_MS.toLong()) {
+                    // wait until publisher ICE connected
+                    var publisherWaitJob: Job? = null
+                    if (hasPublished) {
+                        val waitPublisherObserver = publisherObserver
+                        if (waitPublisherObserver != null) {
+                            publisherWaitJob = launch {
+                                waitPublisherObserver.waitUntilConnected()
+                            }
+                        } else {
+                            LKLog.w { "[${retries + 1}] publisher observer missing while waiting reconnect." }
+                        }
+                    }
+
+                    // wait until subscriber ICE connected
+                    val waitSubscriberObserver = subscriberObserver
+                    val subscriberWaitJob = if (waitSubscriberObserver != null) {
+                        launch {
+                            waitSubscriberObserver.waitUntilConnected()
                         }
                     } else {
-                        LKLog.w { "[${retries + 1}] publisher observer missing while waiting reconnect." }
+                        LKLog.w { "[${retries + 1}] subscriber observer missing while waiting reconnect." }
+                        null
                     }
-                }
 
-                // wait until subscriber ICE connected
-                val waitSubscriberObserver = subscriberObserver
-                val subscriberWaitJob = if (waitSubscriberObserver != null) {
-                    launch {
-                        waitSubscriberObserver.waitUntilConnected()
-                    }
-                } else {
-                    LKLog.w { "[${retries + 1}] subscriber observer missing while waiting reconnect." }
-                    null
-                }
+                    waitJobs = listOfNotNull(publisherWaitJob, subscriberWaitJob)
 
-                val waitJobs = listOfNotNull(publisherWaitJob, subscriberWaitJob)
-                var interruptedForFullReconnect = false
-                val waitCompleted: Boolean = withTimeoutOrNull(MAX_ICE_CONNECT_TIMEOUT_MS.toLong()) {
                     while (waitJobs.any { !it.isCompleted }) {
                         // Server has asked for a full reconnect (e.g. STATE_MISMATCH):
                         // stop waiting current ICE attempt and move to next reconnect loop.
@@ -698,6 +700,7 @@ internal constructor(
                     }
                     true
                 } ?: false
+
                 if (!waitCompleted) {
                     waitJobs.forEach { it.cancel() }
                 }
@@ -1365,14 +1368,14 @@ internal constructor(
             LivekitModels.DataPacket.ValueCase.RPC_REQUEST,
             LivekitModels.DataPacket.ValueCase.RPC_ACK,
             LivekitModels.DataPacket.ValueCase.RPC_RESPONSE,
-            -> {
+                -> {
                 listener?.onRpcPacketReceived(dp)
             }
 
             LivekitModels.DataPacket.ValueCase.STREAM_HEADER,
             LivekitModels.DataPacket.ValueCase.STREAM_CHUNK,
             LivekitModels.DataPacket.ValueCase.STREAM_TRAILER,
-            -> {
+                -> {
                 listener?.onDataStreamPacket(dp, encryptionType)
             }
 
@@ -1382,7 +1385,7 @@ internal constructor(
 
             LivekitModels.DataPacket.ValueCase.VALUE_NOT_SET,
             null,
-            -> {
+                -> {
                 LKLog.v { "invalid value for data packet" }
             }
         }
@@ -1592,7 +1595,7 @@ internal fun LivekitModels.DataPacket.asEncryptedPacketPayload(): LivekitModels.
         LivekitModels.DataPacket.ValueCase.ENCRYPTED_PACKET,
         LivekitModels.DataPacket.ValueCase.TRANSCRIPTION,
         LivekitModels.DataPacket.ValueCase.VALUE_NOT_SET,
-        -> {
+            -> {
             null
         }
     }

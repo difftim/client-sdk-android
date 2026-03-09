@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GROUP="org.difft.android.libraries"
+GROUP="com.github.TempTalkOrg"
 MODULES=(
   "livekit-android"
   "livekit-android-camerax"

@@ -545,7 +545,7 @@ internal constructor(
 
         synchronized(enabledPublishVideoCodecs) {
             if (enabledPublishVideoCodecs.isNotEmpty()) {
-                if (enabledPublishVideoCodecs.none { allowedCodec -> allowedCodec.mime.mimeTypeToVideoCodec() == options.videoCodec }) {
+                if (enabledPublishVideoCodecs.none { allowedCodec -> allowedCodec.mime.mimeTypeToVideoCodec().equals(options.videoCodec, ignoreCase = true) }) {
                     val oldCodec = options.videoCodec
                     val newCodec = enabledPublishVideoCodecs
                         .firstOrNull { it.mime.mimeTypeToVideoCodec() != null }

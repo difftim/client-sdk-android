@@ -1,5 +1,37 @@
 # client-sdk-android
 
+## 2.23.5
+
+### Patch Changes
+
+- Fix not detecting server supported video codecs correctly - [#876](https://github.com/livekit/client-sdk-android/pull/876) ([@davidliu](https://github.com/davidliu))
+
+- Remove Timber from dependencies - [#874](https://github.com/livekit/client-sdk-android/pull/874) ([@davidliu](https://github.com/davidliu))
+
+## 2.23.4
+
+### Patch Changes
+
+- Make selfie segmenter work better - [#861](https://github.com/livekit/client-sdk-android/pull/861) ([@Deneath](https://github.com/Deneath))
+
+- Ensure child jobs are cleaned up on ICE reconnect timeout - [#870](https://github.com/livekit/client-sdk-android/pull/870) ([@davidliu](https://github.com/davidliu))
+
+- Cancel websocket when join coroutine is cancelled - [#871](https://github.com/livekit/client-sdk-android/pull/871) ([@davidliu](https://github.com/davidliu))
+
+- Concurrency fixes for SignalClient connection - [#871](https://github.com/livekit/client-sdk-android/pull/871) ([@davidliu](https://github.com/davidliu))
+
+## 2.23.3
+
+### Patch Changes
+
+- Optimised connection params building - [#852](https://github.com/livekit/client-sdk-android/pull/852) ([@pulakdp](https://github.com/pulakdp))
+
+- Fixed ScreenCaptureConnection suspending forever when bindService fails and crashing when resuming canceled continuations. - [#838](https://github.com/livekit/client-sdk-android/pull/838) ([@adrian-niculescu](https://github.com/adrian-niculescu))
+
+- Migrate from Klaxon decoding to kotlinx-serialization for AgentAttribute deserialization - [#851](https://github.com/livekit/client-sdk-android/pull/851) ([@davidliu](https://github.com/davidliu))
+
+- perf: Skip Klaxon parsing for empty agent attribute maps - [#849](https://github.com/livekit/client-sdk-android/pull/849) ([@YashJainSC](https://github.com/YashJainSC))
+
 ## 2.23.2
 
 ### Patch Changes
