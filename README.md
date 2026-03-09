@@ -76,11 +76,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        //...
-        maven { url 'https://raw.githubusercontent.com/difftim/AndroidRepo/main/' }
-
-        // For SNAPSHOT access
-        // maven { url 'https://raw.githubusercontent.com/difftim/AndroidRepo/snapshots/' }
+        maven { url 'https://jitpack.io' }
     }
 }
 ```
