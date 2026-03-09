@@ -27,11 +27,5 @@ class SampleApplication : Application() {
         LiveKit.loggingLevel = LoggingLevel.VERBOSE
         // LiveKit.enableWebRTCLogging = true
         // LiveKit.loggingLevelWebRTC = LoggingLevel.DEBUG
-        LiveKit.setLogToDebug(true)
-//        LKLog.registerLogCallback( object : LKLog.LogCallback {
-//            override fun onLog(level: LoggingLevel, message: String?, throwable: Throwable?) {
-//                println("***track: $level, $message, ")
-//            }
-//        })
     }
 }
