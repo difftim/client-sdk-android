@@ -1,16 +1,16 @@
 jdk:
-  - openjdk17
+  - openjdk11
 
 before_install:
-  - sdk install java 17.0.2-open
-  - sdk use java 17.0.2-open
-  - apt-get update && apt-get install -y golang cmake
-  - git submodule update --init --recursive
+  - git submodule update --init --recursive || true
   - yes | sdkmanager --licenses || true
   - sdkmanager "ndk;29.0.14206865" "cmake;3.22.1"
+  - curl -fsSL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz -o /tmp/go.tar.gz && tar -xzf /tmp/go.tar.gz -C $HOME && rm -f /tmp/go.tar.gz
+  - sdk install java 17.0.2-open && sdk default java 17.0.2-open
 
 env:
   JITPACK: "true"
 
 install:
+  - export PATH="$HOME/go/bin:$PATH"
   - ./gradlew :ttsignal:publishToMavenLocal :livekit-android-sdk:publishToMavenLocal :livekit-android-camerax:publishToMavenLocal :livekit-android-track-processors:publishToMavenLocal -xtest -xlint
