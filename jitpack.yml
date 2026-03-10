@@ -20,5 +20,5 @@ env:
   JITPACK: "true"
 
 install:
-  - export PATH="$HOME/go/bin:$PATH"
+  - export PATH="$ANDROID_HOME/cmake/3.22.1/bin:$HOME/go/bin:$PATH"
   - ./gradlew :ttsignal:publishToMavenLocal :livekit-android-sdk:publishToMavenLocal :livekit-android-camerax:publishToMavenLocal :livekit-android-track-processors:publishToMavenLocal -xtest -xlint
