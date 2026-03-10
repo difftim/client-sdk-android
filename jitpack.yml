@@ -1,12 +1,20 @@
 jdk:
-  - openjdk11
+  - openjdk17
 
 before_install:
+  - sdk install java 22-open
+  - sdk use java 22-open
   - git submodule update --init --recursive || true
-  - yes | sdkmanager --licenses || true
-  - sdkmanager "ndk;29.0.14206865" "cmake;3.22.1"
+  - |
+    curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdtools.zip
+    mkdir -p $ANDROID_HOME/cmdline-tools
+    unzip -q -o /tmp/cmdtools.zip -d /tmp/cmdtools-extract
+    rm -rf $ANDROID_HOME/cmdline-tools/latest
+    mv /tmp/cmdtools-extract/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+    rm -f /tmp/cmdtools.zip
+  - yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+  - $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
   - curl -fsSL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz -o /tmp/go.tar.gz && tar -xzf /tmp/go.tar.gz -C $HOME && rm -f /tmp/go.tar.gz
-  - sdk install java 17.0.2-open && sdk default java 17.0.2-open
 
 env:
   JITPACK: "true"

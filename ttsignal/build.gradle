@@ -6,7 +6,7 @@ plugins {
 android {
     namespace 'org.difft.android.smp'
     compileSdkVersion androidSdk.compileVersion
-    ndkVersion '29.0.14206865'
+    ndkVersion '26.1.10909125'
 
     defaultConfig {
         minSdkVersion androidSdk.minVersion
