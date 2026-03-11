@@ -208,7 +208,6 @@ internal object RTCModule {
             } catch (t: Throwable) {
                 // do nothing
             }
-
         }
         return Connector(config)
     }

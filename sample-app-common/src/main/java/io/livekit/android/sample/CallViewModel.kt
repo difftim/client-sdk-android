@@ -144,7 +144,7 @@ class CallViewModel(
 
     private fun getConnectOptions(): ConnectOptions {
         if (!BuildConfig.USE_MERGE_START_CALL || BuildConfig.MERGE_START_CALL_PARAM.isNullOrBlank()) {
-            return ConnectOptions(useQuicSignal=quic)
+            return ConnectOptions(useQuicSignal = quic)
         }
         val param = Json.decodeFromString<MergeStartCallParam>(BuildConfig.MERGE_START_CALL_PARAM)
 
@@ -367,19 +367,33 @@ class CallViewModel(
                         }
 
                         is RoomEvent.TrackMuted -> {
-                            LKLog.i { "TrackMuted: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]" }
+                            LKLog.i {
+                                "TrackMuted: [${it.publication.source}: ${it.publication.sid}, " +
+                                    "${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]"
+                            }
                         }
 
                         is RoomEvent.TrackUnmuted -> {
-                            LKLog.i { "TrackUnmuted: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]" }
+                            LKLog.i {
+                                "TrackUnmuted: [${it.publication.source}: ${it.publication.sid}, " +
+                                    "${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}]"
+                            }
                         }
 
                         is RoomEvent.TrackUnpublished -> {
-                            LKLog.i { "TrackUnpublished: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] [screen:${it.participant.funIsScreenShareEnabled()}]" }
+                            LKLog.i {
+                                "TrackUnpublished: [${it.publication.source}: ${it.publication.sid}, " +
+                                    "${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] " +
+                                    "[screen:${it.participant.funIsScreenShareEnabled()}]"
+                            }
                         }
 
                         is RoomEvent.TrackPublished -> {
-                            LKLog.i { "TrackPublished: [${it.publication.source}: ${it.publication.sid}, ${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] [screen:${it.participant.funIsScreenShareEnabled()}]" }
+                            LKLog.i {
+                                "TrackPublished: [${it.publication.source}: ${it.publication.sid}, " +
+                                    "${it.publication.track?.sid}] [${it.participant.sid},${it.participant.identity}] " +
+                                    "[screen:${it.participant.funIsScreenShareEnabled()}]"
+                            }
                         }
 
                         else -> {
