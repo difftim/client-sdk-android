@@ -219,8 +219,13 @@ class IncomingDataStreamManagerImpl @Inject constructor() : IncomingDataStreamMa
                 return
             }
         }
+
         descriptor.readLength = totalReadLength
-        descriptor.channel.trySend(content.toByteArray())
+        val result = descriptor.channel.trySend(content.toByteArray())
+        if (result.isFailure && !result.isClosed) {
+            LKLog.w { "Stream ${chunk.streamId} buffer full, closing stream." }
+            descriptor.channel.close(StreamException.LengthExceededException())
+        }
     }
 
     /**
@@ -345,9 +350,11 @@ class IncomingDataStreamManagerImpl @Inject constructor() : IncomingDataStreamMa
     }
 
     companion object {
+        private const val CHANNEL_CAPACITY = 512
+
         @VisibleForTesting
         fun createChannelForStreamReceiver() = Channel<ByteArray>(
-            capacity = Int.MAX_VALUE,
+            capacity = CHANNEL_CAPACITY,
             onBufferOverflow = BufferOverflow.SUSPEND,
         )
     }
