@@ -168,7 +168,7 @@ class QuicTransport(
 
         val host = url.replaceFirst("wss", "https")
         val props = authObject.toString()
-        LKLog.i { "[quic] connect: host=$host, props=$authObject, ${this@QuicTransport}" }
+        LKLog.i { "[quic] connect: host=$host, ${this@QuicTransport}" }
         this.connection?.connect(host, props, 7 * 1000)
     }
 

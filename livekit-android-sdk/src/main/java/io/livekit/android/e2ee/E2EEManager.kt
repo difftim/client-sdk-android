@@ -240,7 +240,7 @@ constructor(
      */
     fun ratchetKey() {
         val newKey = keyProvider.ratchetSharedKey()
-        LKLog.d { "ratchetSharedKey: newKey: $newKey" }
+        LKLog.d { "ratchetSharedKey: key ratcheted successfully" }
     }
 
     internal fun cleanup() {
