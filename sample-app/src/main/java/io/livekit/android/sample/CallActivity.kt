@@ -29,6 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.github.TempTalkOrg.denoise_filter.DenoisePluginAudioProcessor
 import com.xwray.groupie.GroupieAdapter
 import io.livekit.android.audio.AudioProcessorOptions
 import io.livekit.android.sample.common.R
@@ -40,7 +41,6 @@ import io.livekit.android.sample.model.StressTest
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
-import org.difft.android.libraries.denoise_filter.DenoisePluginAudioProcessor
 
 class CallActivity : AppCompatActivity() {
     private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true)
