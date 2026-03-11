@@ -1306,7 +1306,12 @@ internal constructor(
         if (buffer == null) {
             return
         }
-        var dp = LivekitModels.DataPacket.parseFrom(ByteString.copyFrom(buffer.data))
+        var dp = try {
+            LivekitModels.DataPacket.parseFrom(ByteString.copyFrom(buffer.data))
+        } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
+            LKLog.w(e) { "Failed to parse DataPacket, discarding malformed message." }
+            return
+        }
 
         if (dp.sequence > 0 && dp.participantSid.isNotEmpty()) {
             synchronized(reliableStateLock) {
@@ -1335,7 +1340,12 @@ internal constructor(
                 LKLog.i { "Failed to decrypt data packet." }
                 return
             }
-            val payload = LivekitModels.EncryptedPacketPayload.parseFrom(decryptedData)
+            val payload = try {
+                LivekitModels.EncryptedPacketPayload.parseFrom(decryptedData)
+            } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
+                LKLog.w(e) { "Failed to parse decrypted EncryptedPacketPayload, discarding message." }
+                return
+            }
 
             dp = with(dp.toBuilder()) {
                 setFromEncryptedPayload(payload)
