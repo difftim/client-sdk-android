@@ -251,6 +251,7 @@ constructor(
     }
 
     internal fun dispose() {
+        cleanup()
         dataPacketCryptorManager.dispose()
     }
 
