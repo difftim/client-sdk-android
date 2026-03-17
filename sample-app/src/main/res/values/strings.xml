@@ -10,4 +10,9 @@
     <string name="reset_values">Reset Values</string>
     <string name="denoise_open">NS Open</string>
     <string name="denoise_close">NS Close</string>
+    <string name="ns_rnnoise">RNNoise</string>
+    <string name="ns_deepfilter">DeepFilter</string>
+    <string name="ns_off">NS Off</string>
+    <string name="df_atten_lim">Atten Limit (dB)</string>
+    <string name="df_post_filter">Post Filter Beta</string>
 </resources>

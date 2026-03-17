@@ -21,6 +21,7 @@ import android.os.Bundle
 import android.os.Parcelable
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -29,7 +30,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.github.TempTalkOrg.denoise_filter.DenoisePluginAudioProcessor
+import com.github.TempTalkOrg.audio_pipeline.AudioModule
+import com.github.TempTalkOrg.audio_pipeline.AudioPipelineProcessor
+import com.github.TempTalkOrg.audio_pipeline.DeepFilterConfig
 import com.xwray.groupie.GroupieAdapter
 import io.livekit.android.audio.AudioProcessorOptions
 import io.livekit.android.sample.common.R
@@ -43,7 +46,8 @@ import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 
 class CallActivity : AppCompatActivity() {
-    private val denoiser: DenoisePluginAudioProcessor = DenoisePluginAudioProcessor(debugLog = true)
+    private val denoiser: AudioPipelineProcessor = AudioPipelineProcessor(debugLog = true, vadLogs = true)
+    private var currentDfConfig = DeepFilterConfig()
 
     private val viewModel: CallViewModel by viewModelByFactory {
         val args = intent.getParcelableExtra<BundleArgs>(KEY_ARGS)
@@ -217,6 +221,48 @@ class CallActivity : AppCompatActivity() {
             }
         }
 
+        binding.modelSwitch.setOnClickListener {
+            val current = denoiser.getActiveModule()
+            val next = when (current) {
+                AudioModule.RNNOISE -> AudioModule.DEEP_FILTER_NET
+                AudioModule.DEEP_FILTER_NET -> AudioModule.RNNOISE
+            }
+            denoiser.setModule(next)
+            binding.modelSwitch.text = when (next) {
+                AudioModule.RNNOISE -> getString(io.livekit.android.sample.R.string.ns_rnnoise)
+                AudioModule.DEEP_FILTER_NET -> getString(io.livekit.android.sample.R.string.ns_deepfilter)
+            }
+            updateDfConfigPanel()
+            Toast.makeText(this, "Switched to ${next.id}", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.attenLimSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                binding.attenLimValue.text = progress.toString()
+                if (fromUser) {
+                    currentDfConfig = currentDfConfig.copy(attenLimDb = progress.toFloat())
+                    denoiser.updateDeepFilterConfig(currentDfConfig)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        binding.postFilterSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val beta = progress / 100f
+                binding.postFilterValue.text = String.format("%.2f", beta)
+                if (fromUser) {
+                    currentDfConfig = currentDfConfig.copy(postFilterBeta = beta)
+                    denoiser.updateDeepFilterConfig(currentDfConfig)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        updateDfConfigPanel()
+
         binding.audioSelect.setOnClickListener {
             showSelectAudioDeviceDialog(viewModel)
         }
@@ -250,6 +296,15 @@ class CallActivity : AppCompatActivity() {
             viewModel.dataReceived.collect {
                 Toast.makeText(this@CallActivity, "Data received: $it", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun updateDfConfigPanel() {
+        val isDeepFilter = denoiser.getActiveModule() == AudioModule.DEEP_FILTER_NET
+        binding.dfConfigPanel.visibility = if (isDeepFilter) {
+            android.view.View.VISIBLE
+        } else {
+            android.view.View.GONE
         }
     }
 
