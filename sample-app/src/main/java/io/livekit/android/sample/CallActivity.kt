@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 
 class CallActivity : AppCompatActivity() {
-    private val denoiser: AudioPipelineProcessor = AudioPipelineProcessor(debugLog = true, vadLogs = true)
+    private val denoiser: AudioPipelineProcessor = AudioPipelineProcessor(debugLog = true)
     private var currentDfConfig = DeepFilterConfig()
 
     private val viewModel: CallViewModel by viewModelByFactory {
