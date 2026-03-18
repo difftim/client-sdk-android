@@ -81,4 +81,9 @@ class OverridesModule(private val overrides: LiveKitOverrides) {
     @Named(InjectionNames.OVERRIDE_EGL_BASE)
     @Nullable
     fun eglBase() = overrides.eglBase
+
+    @Provides
+    @Named(InjectionNames.OVERRIDE_QUIC_TRUSTED_CERTIFICATES)
+    @Nullable
+    fun quicTrustedCertificates() = overrides.trustedCertificates
 }

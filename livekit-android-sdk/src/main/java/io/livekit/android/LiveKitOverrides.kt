@@ -73,6 +73,25 @@ data class LiveKitOverrides(
      * Override the options passed into the PeerConnectionFactory when building it.
      */
     val peerConnectionFactoryOptions: PeerConnectionFactory.Options? = null,
+
+    /**
+     * Trusted root certificates for QUIC/TLS certificate verification (DER-encoded X509).
+     *
+     * When provided, the QUIC transport will verify the server's certificate chain
+     * against these trusted root certificates using Android's [javax.net.ssl.X509TrustManager].
+     *
+     * When null, the QUIC transport will skip certificate verification (insecure, default
+     * for backward compatibility). Set this to enable secure QUIC connections.
+     *
+     * Example usage:
+     * ```kotlin
+     * val rootCaCert = context.resources.openRawResource(R.raw.root_ca).readBytes()
+     * val overrides = LiveKitOverrides(
+     *     trustedCertificates = listOf(rootCaCert),
+     * )
+     * ```
+     */
+    val trustedCertificates: List<ByteArray>? = null,
 )
 
 /**

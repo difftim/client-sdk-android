@@ -65,8 +65,16 @@ import okhttp3.OkHttpClient
 import org.difft.android.smp.Config
 import org.difft.android.smp.Connector
 import org.difft.android.smp.Const
+import java.io.ByteArrayInputStream
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import javax.inject.Named
 import javax.inject.Singleton
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLPeerUnverifiedException
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 /**
  * @suppress
@@ -185,7 +193,10 @@ internal object RTCModule {
 
     @Provides
     @Singleton
-    fun ttsignalConnector(): Connector {
+    fun ttsignalConnector(
+        @Named(InjectionNames.OVERRIDE_QUIC_TRUSTED_CERTIFICATES)
+        trustedCertificates: List<ByteArray>?,
+    ): Connector {
         val config = Config()
         config.taskThreads = 1
         config.timerThreads = 1
@@ -209,7 +220,83 @@ internal object RTCModule {
                 // do nothing
             }
         }
+        if (!trustedCertificates.isNullOrEmpty()) {
+            config.certVerifier = createCertVerifier(trustedCertificates)
+        }
         return Connector(config)
+    }
+
+    private fun createCertVerifier(trustedCertificates: List<ByteArray>): Config.CertVerifier {
+        val certFactory = CertificateFactory.getInstance("X.509")
+        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null) }
+        trustedCertificates.forEachIndexed { index, certBytes ->
+            val cert = certFactory.generateCertificate(ByteArrayInputStream(certBytes))
+            keyStore.setCertificateEntry("trusted_$index", cert)
+        }
+
+        val trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        trustManagerFactory.init(keyStore)
+        val trustManager = trustManagerFactory.trustManagers
+            .filterIsInstance<X509TrustManager>()
+            .first()
+
+        val hostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
+
+        return Config.CertVerifier { derCerts, hostname ->
+            try {
+                val x509Certs = derCerts.map { der ->
+                    certFactory.generateCertificate(ByteArrayInputStream(der)) as X509Certificate
+                }.toTypedArray()
+
+                trustManager.checkServerTrusted(x509Certs, "UNKNOWN")
+
+                if (!hostname.isNullOrEmpty()) {
+                    val leafCert = x509Certs.firstOrNull()
+                        ?: throw SSLPeerUnverifiedException("Empty certificate chain")
+                    if (!hostnameVerifier.verify(hostname, createSSLSession(leafCert))) {
+                        throw SSLPeerUnverifiedException(
+                            "Hostname '$hostname' does not match certificate"
+                        )
+                    }
+                }
+
+                LKLog.i { "[quic] Certificate verification success (host=$hostname)" }
+                true
+            } catch (e: Exception) {
+                LKLog.e(e) { "[quic] Certificate verification failed (host=$hostname)" }
+                false
+            }
+        }
+    }
+
+    /**
+     * Creates a minimal SSLSession wrapper for hostname verification.
+     * The [HostnameVerifier] only reads the peer certificates from the session.
+     */
+    private fun createSSLSession(leafCert: X509Certificate): javax.net.ssl.SSLSession {
+        return object : javax.net.ssl.SSLSession {
+            override fun getPeerCertificates() = arrayOf<java.security.cert.Certificate>(leafCert)
+            override fun getId() = ByteArray(0)
+            override fun getSessionContext() = null
+            override fun getCreationTime() = 0L
+            override fun getLastAccessedTime() = 0L
+            override fun invalidate() {}
+            override fun isValid() = true
+            override fun putValue(name: String?, value: Any?) {}
+            override fun getValue(name: String?) = null
+            override fun removeValue(name: String?) {}
+            override fun getValueNames() = emptyArray<String>()
+            override fun getPeerCertificateChain() = null
+            override fun getPeerPrincipal() = leafCert.subjectX500Principal
+            override fun getLocalPrincipal() = null
+            override fun getCipherSuite() = ""
+            override fun getProtocol() = "TLSv1.3"
+            override fun getPeerHost() = null
+            override fun getPeerPort() = 0
+            override fun getPacketBufferSize() = 0
+            override fun getApplicationBufferSize() = 0
+            override fun getLocalCertificates() = null
+        }
     }
 
     @Provides
