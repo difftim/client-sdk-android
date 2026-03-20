@@ -52,7 +52,7 @@ LiveKit for Android is available as a Maven package.
 ```groovy title="build.gradle"
 ...
 dependencies {
-  def livekit_version = "2.23.5.3"
+  def livekit_version = "2.23.5.6"
 
   implementation "org.difft.android.libraries:livekit-android:$livekit_version"
 
