@@ -78,6 +78,8 @@ class QuicTransport(
             maxConnections = 1
             congestCtrl = Const.CC_BBR2
             pingOn = true
+            deviceType = options.quicDeviceType
+            cidTag = options.quicCidTag
             // alpn = "h3" //for webtransport
             alpn = "ttsignal" // for raw quic
         }

@@ -88,6 +88,9 @@ class CallActivity : AppCompatActivity() {
             token = args.token,
             e2ee = args.e2eeOn,
             e2eeKey = args.e2eeKey,
+            quic = args.quicOn,
+            quicDeviceType = args.quicDeviceType,
+            quicCidTag = args.quicCidTag,
             stressTest = args.stressTest,
             application = application,
         )
@@ -526,6 +529,9 @@ class CallActivity : AppCompatActivity() {
         val token: String,
         val e2eeKey: String,
         val e2eeOn: Boolean,
+        val quicOn: Boolean,
+        val quicDeviceType: Int,
+        val quicCidTag: String,
         val stressTest: StressTest,
     ) : Parcelable
 }
