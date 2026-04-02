@@ -42,6 +42,8 @@ public class Config {
     public LogHandler logHandler = null;
     // Log level, error : E, info : I, debug : D, trace : T, warn : W
     public int logLevel = 0;
+    // number of senders
+    public int numOfSenders = 1;
 
     public Config() {
         // Default constructor
