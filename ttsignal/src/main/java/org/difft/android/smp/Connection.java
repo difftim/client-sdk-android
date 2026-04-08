@@ -22,7 +22,7 @@ public class Connection {
 
     private native void closeStream(long handle, int streamId);
 
-    private native void restart(long handle);
+    private native void restart(long handle, long networkHandle);
 
     private native void close(long handle);
 
@@ -183,11 +183,15 @@ public class Connection {
         return userObject;
     }
 
-    public void restart() {
+    public void restart(long networkHandle) {
         if (isClosed()) {
             return;
         }
-        restart(this.connectionHandle);
+        restart(this.connectionHandle, networkHandle);
+    }
+
+    public void restart(){
+        restart(0);
     }
 
     public void close() {

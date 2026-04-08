@@ -21,6 +21,7 @@ package io.livekit.android.room
 import android.content.Context
 import android.net.ConnectivityManager.NetworkCallback
 import android.net.Network
+import android.net.NetworkCapabilities
 import androidx.annotation.VisibleForTesting
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -356,7 +357,10 @@ constructor(
         private set
 
     @Volatile
-    private var hasLostConnectivity: Boolean = false
+    private var activeNetwork: Network? = null
+    @Volatile
+    private var pendingRestartNetwork: Network? = null
+
     private var connectOptions: ConnectOptions = ConnectOptions()
 
     private var stateLock = Mutex()
@@ -1007,11 +1011,20 @@ constructor(
         eventBus.postEvent(RoomEvent.ActiveSpeakersChanged(this, mutableActiveSpeakers), coroutineScope)
     }
 
-    private fun reconnect() {
+    private fun reconnect(networkHandle: Long = 0) {
+        LKLog.i {
+            "[reconnect][net] reconnect requested, networkHandle=$networkHandle, " +
+                "state=$state, activeNetwork=$activeNetwork"
+        }
         if (state == State.RECONNECTING) {
+            LKLog.i { "[reconnect][net] reconnect skipped: state already RECONNECTING" }
             return
         }
-        engine.reconnect()
+        if (activeNetwork == null) {
+            LKLog.i { "[reconnect][net] reconnect deferred: no active network" }
+            return
+        }
+        engine.reconnect(networkHandle)
     }
 
     private fun handleDisconnect(reason: DisconnectReason) {
@@ -1024,7 +1037,8 @@ constructor(
                     return@runBlocking
                 }
                 networkCallbackManager.unregisterCallback()
-                hasLostConnectivity = false
+                activeNetwork = null
+                pendingRestartNetwork = null
 
                 state = State.DISCONNECTED
                 cleanupRoom()
@@ -1155,22 +1169,45 @@ constructor(
     // ------------------------------------- NetworkCallback -------------------------------------//
     private val networkCallbackManager = networkCallbackManagerFactory.invoke(
         object : NetworkCallback() {
-            override fun onLost(network: Network) {
-                LKLog.i { "network connection onLost, hasLostConnectivity=$hasLostConnectivity, network=[$network]" }
+            override fun onAvailable(network: Network) {
+                LKLog.i { "[reconnect][net] network onAvailable, network=$network, activeNetwork=$activeNetwork" }
 
-                // lost connection, flip to reconnecting
-                hasLostConnectivity = true
+                val prev = activeNetwork
+                activeNetwork = network
+                if (prev != network) {
+                    pendingRestartNetwork = network
+                    LKLog.i { "[reconnect][net] network changed, waiting for readiness, network=$network" }
+                }
             }
 
-            override fun onAvailable(network: Network) {
-                LKLog.i { "network connection onAvailable, hasLostConnectivity=$hasLostConnectivity , network=[$network]" }
-                // only actually reconnect after connection is re-established
-                if (!hasLostConnectivity) {
+            override fun onLost(network: Network) {
+                LKLog.i { "[reconnect][net] network onLost, network=$network, activeNetwork=$activeNetwork" }
+
+                if (network == activeNetwork) {
+                    activeNetwork = null
+                    pendingRestartNetwork = null
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                LKLog.d { "[reconnect][net] onCapabilitiesChanged, network=$network, pendingRestartNetwork=$pendingRestartNetwork, caps=$caps" }
+                activeNetwork = network
+
+                if (network != pendingRestartNetwork) {
+                    return
+                }
+                pendingRestartNetwork = null
+
+                if (state != State.CONNECTED) {
+                    LKLog.d { "[reconnect][net] network ready but state=$state, skipping reconnect, network=$network" }
                     return
                 }
 
-                hasLostConnectivity = false
-                reconnect()
+                LKLog.i {
+                    "[reconnect][net] network ready, scheduling reconnect, network=$network, " +
+                        "networkHandle=${network.networkHandle}, state=$state, useQuic=${connectOptions.useQuicSignal}"
+                }
+                reconnect(network.networkHandle)
             }
         },
     )
@@ -1477,6 +1514,14 @@ constructor(
     override fun onSubscriptionPermissionUpdate(subscriptionPermissionUpdate: LivekitRtc.SubscriptionPermissionUpdate) {
         val participant = getParticipantBySid(subscriptionPermissionUpdate.participantSid) as? RemoteParticipant ?: return
         participant.onSubscriptionPermissionUpdate(subscriptionPermissionUpdate)
+    }
+
+    /**
+     * @suppress
+     */
+    override fun onEngineConnectionLost() {
+        LKLog.i { "[reconnect][net] engine connection lost callback received" }
+        reconnect()
     }
 
     /**

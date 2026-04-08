@@ -132,6 +132,9 @@ class QuicTransport(
 
             override fun onRestart(conn: Connection?, result: Int, address: String?) {
                 LKLog.i { "[quic] Restart result: $result, address: $address, ${this@QuicTransport}" }
+                executeOnListenerThread {
+                    listener.onRestarted(this@QuicTransport, result, address)
+                }
             }
 
             override fun onClosed(conn: Connection?, reason: String?) {
@@ -199,6 +202,14 @@ class QuicTransport(
                 connection?.close()
                 cleanup()
             }
+        }
+    }
+
+    override fun restart(networkHandle: Long) {
+        synchronized(lock) {
+            val conn = connection ?: return
+            LKLog.i { "[quic] restart with networkHandle=$networkHandle, ${this@QuicTransport}" }
+            conn.restart(networkHandle)
         }
     }
 
