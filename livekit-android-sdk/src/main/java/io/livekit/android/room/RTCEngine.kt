@@ -29,6 +29,9 @@ import io.livekit.android.e2ee.E2EEManager
 import io.livekit.android.e2ee.EncryptedPacket
 import io.livekit.android.events.DisconnectReason
 import io.livekit.android.events.convert
+import io.livekit.android.room.network.DefaultReconnectPolicy
+import io.livekit.android.room.network.ReconnectContext
+import io.livekit.android.room.network.ReconnectPolicy
 import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.participant.ParticipantTrackPermission
 import io.livekit.android.room.track.TrackException
@@ -99,6 +102,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -161,6 +165,8 @@ internal constructor(
 
     @Volatile
     private var fullReconnectOnNext = false
+
+    internal var reconnectPolicy: ReconnectPolicy = DefaultReconnectPolicy()
 
     private val pendingTrackResolvers: MutableMap<String, Continuation<LivekitModels.TrackInfo>> =
         mutableMapOf()
@@ -618,6 +624,8 @@ internal constructor(
             var hasReconnectedOnce = false
 
             val reconnectStartTime = SystemClock.elapsedRealtime()
+            val reconnectPolicy = this@RTCEngine.reconnectPolicy
+
             for (retries in 0 until MAX_RECONNECT_RETRIES) {
                 // First try use previously valid url.
                 if (retries != 0) {
@@ -638,17 +646,22 @@ internal constructor(
                     break
                 }
 
-                var startDelay = 100 + retries.toLong() * retries * 500
-                if (startDelay > 5000) {
-                    startDelay = 5000
+                val reconnectContext = ReconnectContext(
+                    retryCount = retries,
+                    elapsedTime = (SystemClock.elapsedRealtime() - reconnectStartTime).milliseconds,
+                )
+                var startDelay = reconnectPolicy.getNextRetryDelay(reconnectContext)
+                if (startDelay == null) {
+                    LKLog.i { "[reconnect][net] [${retries + 1}] cancelling reconnection due to policy." }
+                    break
                 }
                 if (fullReconnectOnNext) {
                     LKLog.i { "[reconnect][net] [${retries + 1}] full reconnect requested, skipping reconnect delay" }
-                    startDelay = 0
+                    startDelay = 0.milliseconds
                 }
 
-                LKLog.i { "[reconnect][signal] [${retries + 1}] reconnecting to signal, delay=${startDelay}ms" }
-                if (startDelay > 0) {
+                LKLog.i { "[reconnect][signal] [${retries + 1}] reconnecting to signal, delay=${startDelay}" }
+                if (startDelay > 0.milliseconds) {
                     delay(startDelay)
                 }
 
@@ -823,16 +836,16 @@ internal constructor(
                     break
                 }
 
-                val publisherConnected = publisher?.isConnected() == true
                 val subscriberConnected = subscriber?.isConnected() == true
-                val reconnected = subscriberConnected && (!hasPublished || publisherConnected)
+                val publisherConnected = !hasPublished || publisher?.isConnected() == true
+                val reconnected = (connectionState == ConnectionState.CONNECTED || connectionState == ConnectionState.RESUMING) && subscriberConnected && publisherConnected
                 LKLog.i {
                     "[reconnect][ice] [${retries + 1}] reconnect-check subscriberConnected=$subscriberConnected, " +
                         "publisherConnected=$publisherConnected, hasPublished=$hasPublished, reconnected=$reconnected"
                 }
 
                 if (reconnected) {
-                    if (connectionState != ConnectionState.CONNECTED) {
+                    if (connectionState == ConnectionState.RESUMING) {
                         LKLog.i { "[reconnect][ice] [${retries + 1}] connectionState change $connectionState => CONNECTED" }
                         // ICE restart may keep PC state as CONNECTED and never emit a fresh callback.
                         connectionState = ConnectionState.CONNECTED
@@ -844,7 +857,6 @@ internal constructor(
                             LKLog.w(resendResult.exceptionOrNull()) {
                                 "[reconnect][signal] [${retries + 1}] failed to resend reliable messages after resume; retrying reconnect"
                             }
-                            continue
                         }
                     }
                     // Is connected, notify and return.
@@ -891,7 +903,11 @@ internal constructor(
 
     @CheckResult
     internal suspend fun sendData(dataPacket: LivekitModels.DataPacket): Result<Unit> {
-        ensurePublisherConnected(dataPacket.kind)
+        try {
+            ensurePublisherConnected(dataPacket.kind)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
 
         fun sendDataImpl(dataPacket: LivekitModels.DataPacket): Result<Unit> {
             try {
@@ -982,17 +998,7 @@ internal constructor(
         } catch (e: Exception) {
             return
         }
-        val manager = when (kind) {
-            LivekitModels.DataPacket.Kind.RELIABLE -> reliableDataChannelManager
-            LivekitModels.DataPacket.Kind.LOSSY -> lossyDataChannelManager
-            LivekitModels.DataPacket.Kind.UNRECOGNIZED -> {
-                throw IllegalArgumentException()
-            }
-        }
-
-        if (manager == null) {
-            return
-        }
+        val manager = dataChannelManagerForKind(kind) ?: return
         manager.waitForBufferedAmountLow(DATA_CHANNEL_LOW_THRESHOLD.toLong())
     }
 
@@ -1003,7 +1009,7 @@ internal constructor(
         }
 
         if (publisher == null) {
-            throw RoomException.ConnectException("Publisher isn't setup yet! Is room not connected?!")
+            throw RoomException.ConnectException("Publisher isn't setup yet! Is the room connected?")
         }
 
         if (publisher?.isConnected() != true &&
@@ -1013,25 +1019,37 @@ internal constructor(
             this.negotiatePublisher()
         }
 
-        val targetChannel = dataChannelForKind(kind) ?: throw RoomException.ConnectException("Publisher isn't setup yet! Is room not connected?!")
-        if (targetChannel.state() == DataChannel.State.OPEN) {
+        // Ensure data channel exists
+        dataChannelForKind(kind) ?: throw RoomException.ConnectException("Publisher data channel not established for ${kind.name}; is the room connected?")
+
+        val channelManager = dataChannelManagerForKind(kind)
+            ?: throw RoomException.ConnectException("Publisher data channel manager not established for ${kind.name}; is the room connected?")
+        if (channelManager.state == DataChannel.State.OPEN) {
             return
         }
 
         // wait until publisher ICE connected
         val endTime = SystemClock.elapsedRealtime() + MAX_ICE_CONNECT_TIMEOUT_MS
         while (SystemClock.elapsedRealtime() < endTime) {
-            if (fullReconnectOnNext) {
-                throw RoomException.ConnectException("publisher reconnect superseded by full reconnect")
-            }
-            if (publisher?.isConnected() == true && targetChannel.state() == DataChannel.State.OPEN) {
+            if (publisher?.isConnected() == true &&
+                channelManager.state == DataChannel.State.OPEN
+            ) {
                 return
             }
             delay(50)
         }
 
-        throw RoomException.ConnectException("could not establish publisher connection")
+        throw RoomException.ConnectException(
+            "could not establish publisher connection: publisher state: ${publisherObserver?.connectionState}, channel state: ${channelManager.state}",
+        )
     }
+
+    private fun dataChannelManagerForKind(kind: LivekitModels.DataPacket.Kind): DataChannelManager? =
+        when (kind) {
+            LivekitModels.DataPacket.Kind.RELIABLE -> reliableDataChannelManager
+            LivekitModels.DataPacket.Kind.LOSSY -> lossyDataChannelManager
+            LivekitModels.DataPacket.Kind.UNRECOGNIZED -> throw IllegalArgumentException("Unknown data packet kind!")
+        }
 
     private fun dataChannelForKind(kind: LivekitModels.DataPacket.Kind) =
         when (kind) {
@@ -1187,7 +1205,7 @@ internal constructor(
         @VisibleForTesting
         const val LOSSY_DATA_CHANNEL_LABEL = "_lossy"
         internal const val MAX_DATA_PACKET_SIZE = 15 * 1024 // 15 KB
-        private const val MAX_RECONNECT_RETRIES = 14 // ~60s
+        private const val MAX_RECONNECT_RETRIES = 30
         private const val MAX_RECONNECT_TIMEOUT = 60 * 1000
         private const val MAX_ICE_CONNECT_TIMEOUT_MS = 20000
 
