@@ -1020,20 +1020,20 @@ constructor(
         eventBus.postEvent(RoomEvent.ActiveSpeakersChanged(this, mutableActiveSpeakers), coroutineScope)
     }
 
-    private fun reconnect(networkHandle: Long = 0) {
+    private fun reconnect(networkHandle: Long = 0, reason: String = "unspecified") {
         LKLog.i {
             "[reconnect][net] reconnect requested, networkHandle=$networkHandle, " +
-                "state=$state, activeNetwork=$activeNetwork"
+                "state=$state, activeNetwork=$activeNetwork, reason=$reason"
         }
         if (state == State.RECONNECTING) {
-            LKLog.i { "[reconnect][net] reconnect skipped: state already RECONNECTING" }
+            LKLog.i { "[reconnect][net] reconnect skipped: state already RECONNECTING, reason=$reason" }
             return
         }
         if (activeNetwork == null) {
-            LKLog.i { "[reconnect][net] reconnect deferred: no active network" }
+            LKLog.i { "[reconnect][net] reconnect deferred: no active network, reason=$reason" }
             return
         }
-        engine.reconnect(networkHandle)
+        engine.reconnect(networkHandle, reason)
     }
 
     private fun handleDisconnect(reason: DisconnectReason) {
@@ -1216,7 +1216,7 @@ constructor(
                     "[reconnect][net] network ready, scheduling reconnect, network=$network, " +
                         "networkHandle=${network.networkHandle}, state=$state, useQuic=${connectOptions.useQuicSignal}"
                 }
-                reconnect(network.networkHandle)
+                reconnect(network.networkHandle, reason = "network capabilities changed")
             }
         },
     )
@@ -1528,9 +1528,9 @@ constructor(
     /**
      * @suppress
      */
-    override fun onEngineConnectionLost() {
-        LKLog.i { "[reconnect][net] engine connection lost callback received" }
-        reconnect()
+    override fun onEngineConnectionLost(reason: String) {
+        LKLog.i { "[reconnect][net] engine connection lost callback received, reason=$reason" }
+        reconnect(reason = reason)
     }
 
     /**

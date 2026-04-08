@@ -146,7 +146,7 @@ internal constructor(
             ConnectionState.DISCONNECTED -> {
                 LKLog.d { "primary ICE disconnected" }
                 if (oldVal == ConnectionState.CONNECTED) {
-                    listener?.onEngineConnectionLost()
+                    listener?.onEngineConnectionLost("primary ICE disconnected")
                 }
             }
 
@@ -360,7 +360,7 @@ internal constructor(
                         if (newState.isDisconnected()) {
                             val tagL = "listener${Integer.toHexString(System.identityHashCode(this))}"
                             LKLog.i { "[$tagL, $tag] publisher disconnected" }
-                            listener?.onEngineConnectionLost()
+                            listener?.onEngineConnectionLost("publisher disconnected")
                         }
                     }
                 } else {
@@ -599,29 +599,30 @@ internal constructor(
      */
     @Synchronized
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    fun reconnect(networkHandle: Long = 0) {
+    fun reconnect(networkHandle: Long = 0, reason: String = "unspecified") {
         LKLog.i {
             "[reconnect][net] reconnect invoked, networkHandle=$networkHandle, " +
-                "reconnecting=${reconnectingJob?.isActive == true}, state=$connectionState"
+                "reconnecting=${reconnectingJob?.isActive == true}, state=$connectionState, reason=$reason"
         }
         if (reconnectingJob?.isActive == true) {
-            LKLog.d { "[reconnect][net] reconnect skipped: reconnection is already in progress" }
+            LKLog.d { "[reconnect][net] reconnect skipped: reconnection is already in progress, reason=$reason" }
             return
         }
         if (this.isClosed) {
-            LKLog.d { "[reconnect][net] reconnect skipped: engine is closed" }
+            LKLog.d { "[reconnect][net] reconnect skipped: engine is closed, reason=$reason" }
             return
         }
         var url = sessionUrl
         val token = sessionToken
         if (url == null || token == null) {
-            LKLog.w { "[reconnect][net] reconnect skipped: no url or no token" }
+            LKLog.w { "[reconnect][net] reconnect skipped: no url or no token, reason=$reason" }
             return
         }
         pendingNetworkHandle = networkHandle
         val job = coroutineScope.launch {
             var hasResumedOnce = false
             var hasReconnectedOnce = false
+            val reconnectReason = reason
 
             val reconnectStartTime = SystemClock.elapsedRealtime()
             val reconnectPolicy = this@RTCEngine.reconnectPolicy
@@ -632,7 +633,7 @@ internal constructor(
                     try {
                         url = regionUrlProvider?.getNextBestRegionUrl() ?: url
                     } catch (e: Exception) {
-                        LKLog.d(e) { "[reconnect][net] [${retries + 1}] exception while getting next best region url while reconnecting" }
+                        LKLog.d(e) { "[reconnect][net][${retries + 1}] exception while getting next best region url while reconnecting" }
                     }
                 }
 
@@ -642,7 +643,7 @@ internal constructor(
                 }
 
                 if (isClosed) {
-                    LKLog.i { "[reconnect][net] [${retries + 1}] RTCEngine closed (section 1), aborting reconnection" }
+                    LKLog.i { "[reconnect][net][${retries + 1}] RTCEngine closed (section 1), aborting reconnection" }
                     break
                 }
 
@@ -652,15 +653,15 @@ internal constructor(
                 )
                 var startDelay = reconnectPolicy.getNextRetryDelay(reconnectContext)
                 if (startDelay == null) {
-                    LKLog.i { "[reconnect][net] [${retries + 1}] cancelling reconnection due to policy." }
+                    LKLog.i { "[reconnect][net][${retries + 1}] cancelling reconnection due to policy, reason=$reconnectReason" }
                     break
                 }
                 if (fullReconnectOnNext) {
-                    LKLog.i { "[reconnect][net] [${retries + 1}] full reconnect requested, skipping reconnect delay" }
+                    LKLog.i { "[reconnect][net][${retries + 1}] full reconnect requested, skipping reconnect delay, reason=$reconnectReason" }
                     startDelay = 0.milliseconds
                 }
 
-                LKLog.i { "[reconnect][signal] [${retries + 1}] reconnecting to signal, delay=${startDelay}" }
+                LKLog.i { "[reconnect][signal][${retries + 1}] reconnecting to signal, delay=${startDelay}, reason=$reconnectReason" }
                 if (startDelay > 0.milliseconds) {
                     delay(startDelay)
                 }
@@ -679,9 +680,9 @@ internal constructor(
                 var lastMessageSeq: Int? = null
                 val connectOptions = connectOptions ?: ConnectOptions()
                 suspend fun performSignalReconnect() {
-                    LKLog.i { "[reconnect][signal] [${retries + 1}] signal connect in." }
+                    LKLog.i { "[reconnect][signal][${retries + 1}] signal connect in." }
                     val response = client.reconnect(url!!, token, participantSid)
-                    LKLog.i { "[reconnect][signal] [${retries + 1}] signal connect out." }
+                    LKLog.i { "[reconnect][signal][${retries + 1}] signal connect out." }
                     if (response is Either.Left) {
                         val reconnectResponse = response.value
                         val rtcConfig = makeRTCConfig(Either.Right(reconnectResponse), connectOptions)
@@ -690,7 +691,7 @@ internal constructor(
                         lastMessageSeq = reconnectResponse.lastMessageSeq
                     }
                     client.onReadyForResponses()
-                    LKLog.i { "[reconnect][signal] [${retries + 1}] signal reconnect succeeded, starting ICE restart" }
+                    LKLog.i { "[reconnect][signal][${retries + 1}] signal reconnect succeeded, starting ICE restart" }
                     listener?.onSignalConnected(true)
 
                     if (hasPublished) {
@@ -698,7 +699,7 @@ internal constructor(
                     }
                 }
                 if (isFullReconnect) {
-                    LKLog.i { "[reconnect][signal] [${retries + 1}] attempting full reconnect" }
+                    LKLog.i { "[reconnect][signal][${retries + 1}] attempting full reconnect" }
 
                     if (!hasReconnectedOnce) {
                         hasReconnectedOnce = true
@@ -710,7 +711,7 @@ internal constructor(
                         listener?.onFullReconnecting()
                         joinImpl(url!!, token, connectOptions, lastRoomOptions ?: RoomOptions())
                     } catch (e: Exception) {
-                        LKLog.w(e) { "[reconnect][signal] [${retries + 1}] error during full reconnection" }
+                        LKLog.w(e) { "[reconnect][signal][${retries + 1}] error during full reconnection" }
                         // reconnect failed, retry.
                         continue
                     }
@@ -725,7 +726,7 @@ internal constructor(
                         pendingNetworkHandle = 0
                     }
                     LKLog.i {
-                        "[reconnect][net] [${retries + 1}] Attempting soft reconnect, " +
+                        "[reconnect][net][${retries + 1}] Attempting soft reconnect, " +
                             "networkHandle=$attemptNetworkHandle, useQuic=${connectOptions.useQuicSignal}, " +
                             "clientConnected=${client.isConnected}"
                     }
@@ -736,35 +737,35 @@ internal constructor(
                             client.isConnected
                     if (shouldTryQuicRestart) {
                         LKLog.i {
-                            "[reconnect][quic] [${retries + 1}] soft reconnect fast path: trying QUIC restart, " +
+                            "[reconnect][quic][${retries + 1}] soft reconnect fast path: trying QUIC restart, " +
                                 "networkHandle=$attemptNetworkHandle"
                         }
                         val restartOk = tryQuicRestart(attemptNetworkHandle)
                         if (restartOk) {
-                            LKLog.i { "[reconnect][quic] [${retries + 1}] QUIC restart succeeded, starting ICE restart" }
+                            LKLog.i { "[reconnect][quic][${retries + 1}] QUIC restart succeeded, starting ICE restart" }
                             listener?.onSignalConnected(true)
                             if (hasPublished) {
                                 negotiatePublisherIceRestart()
                             }
                         } else {
-                            LKLog.i { "[reconnect][quic] [${retries + 1}] QUIC restart failed, falling back to signal reconnect" }
+                            LKLog.i { "[reconnect][quic][${retries + 1}] QUIC restart failed, falling back to signal reconnect" }
                             try {
                                 performSignalReconnect()
                             } catch (e: Exception) {
-                                LKLog.w(e) { "[reconnect][signal] [${retries + 1}] error during fallback signal reconnect: ${e.message}" }
+                                LKLog.w(e) { "[reconnect][signal][${retries + 1}] error during fallback signal reconnect: ${e.message}" }
                                 continue
                             }
                         }
                     } else {
                         LKLog.i {
-                            "[reconnect][signal] [${retries + 1}] direct signal reconnect path, " +
+                            "[reconnect][signal][${retries + 1}] direct signal reconnect path, " +
                                 "networkHandle=$attemptNetworkHandle, useQuic=${connectOptions.useQuicSignal}, " +
                                 "clientConnected=${client.isConnected}"
                         }
                         try {
                             performSignalReconnect()
                         } catch (e: Exception) {
-                            LKLog.w(e) { "[reconnect][signal] [${retries + 1}] error during signal reconnect: ${e.message}" }
+                            LKLog.w(e) { "[reconnect][signal][${retries + 1}] error during signal reconnect: ${e.message}" }
                             continue
                         }
                     }
@@ -772,7 +773,7 @@ internal constructor(
 
                 ensureActive()
                 if (isClosed) {
-                    LKLog.i { "[reconnect][net] [${retries + 1}] RTCEngine closed (section 2), aborting reconnection" }
+                    LKLog.i { "[reconnect][net][${retries + 1}] RTCEngine closed (section 2), aborting reconnection" }
                     break
                 }
 
@@ -780,7 +781,7 @@ internal constructor(
                 var waitJobs = emptyList<Job>()
                 val waitCompleted: Boolean = withTimeoutOrNull(MAX_ICE_CONNECT_TIMEOUT_MS.toLong()) {
                     LKLog.i {
-                        "[reconnect][ice] [${retries + 1}] waiting for ICE reconnect, expectReconnect=${!isFullReconnect}, " +
+                        "[reconnect][ice][${retries + 1}] waiting for ICE reconnect, expectReconnect=${!isFullReconnect}, " +
                             "hasPublished=$hasPublished"
                     }
                     // wait until publisher ICE connected
@@ -792,7 +793,7 @@ internal constructor(
                                 waitPublisherObserver.waitUntilConnected()
                             }
                         } else {
-                            LKLog.w { "[reconnect][ice] [${retries + 1}] publisher observer missing while waiting reconnect" }
+                            LKLog.w { "[reconnect][ice][${retries + 1}] publisher observer missing while waiting reconnect" }
                         }
                     }
 
@@ -803,7 +804,7 @@ internal constructor(
                             waitSubscriberObserver.waitUntilConnected()
                         }
                     } else {
-                        LKLog.w { "[reconnect][ice] [${retries + 1}] subscriber observer missing while waiting reconnect" }
+                        LKLog.w { "[reconnect][ice][${retries + 1}] subscriber observer missing while waiting reconnect" }
                         null
                     }
 
@@ -821,18 +822,18 @@ internal constructor(
                     true
                 } ?: false
 
-                LKLog.i { "[reconnect][ice] [${retries + 1}] ICE wait finished, waitCompleted=$waitCompleted" }
+                LKLog.i { "[reconnect][ice][${retries + 1}] ICE wait finished, waitCompleted=$waitCompleted" }
                 if (!waitCompleted) {
                     waitJobs.forEach { it.cancel() }
                 }
                 if (interruptedForFullReconnect) {
-                    LKLog.i { "[reconnect][ice] [${retries + 1}] full reconnect requested while waiting ICE; aborting current wait" }
+                    LKLog.i { "[reconnect][ice][${retries + 1}] full reconnect requested while waiting ICE; aborting current wait" }
                     continue
                 }
 
                 ensureActive()
                 if (isClosed) {
-                    LKLog.i { "[reconnect][net] [${retries + 1}] RTCEngine closed (section 3), aborting reconnection" }
+                    LKLog.i { "[reconnect][net][${retries + 1}] RTCEngine closed (section 3), aborting reconnection" }
                     break
                 }
 
@@ -840,13 +841,13 @@ internal constructor(
                 val publisherConnected = !hasPublished || publisher?.isConnected() == true
                 val reconnected = (connectionState == ConnectionState.CONNECTED || connectionState == ConnectionState.RESUMING) && subscriberConnected && publisherConnected
                 LKLog.i {
-                    "[reconnect][ice] [${retries + 1}] reconnect-check subscriberConnected=$subscriberConnected, " +
+                    "[reconnect][ice][${retries + 1}] reconnect-check subscriberConnected=$subscriberConnected, " +
                         "publisherConnected=$publisherConnected, hasPublished=$hasPublished, reconnected=$reconnected"
                 }
 
                 if (reconnected) {
                     if (connectionState == ConnectionState.RESUMING) {
-                        LKLog.i { "[reconnect][ice] [${retries + 1}] connectionState change $connectionState => CONNECTED" }
+                        LKLog.i { "[reconnect][ice][${retries + 1}] connectionState change $connectionState => CONNECTED" }
                         // ICE restart may keep PC state as CONNECTED and never emit a fresh callback.
                         connectionState = ConnectionState.CONNECTED
                     }
@@ -855,7 +856,7 @@ internal constructor(
                         val resendResult = resendReliableMessagesForResume(finalLastMessageSeq)
                         if (resendResult.isFailure) {
                             LKLog.w(resendResult.exceptionOrNull()) {
-                                "[reconnect][signal] [${retries + 1}] failed to resend reliable messages after resume; retrying reconnect"
+                                "[reconnect][signal][${retries + 1}] failed to resend reliable messages after resume; retrying reconnect"
                             }
                         }
                     }
@@ -1166,7 +1167,7 @@ internal constructor(
         fun onEngineReconnecting()
         fun onEngineResuming() {}
         fun onEngineResumed() {}
-        fun onEngineConnectionLost() {}
+        fun onEngineConnectionLost(reason: String = "unspecified") {}
         fun onEngineDisconnected(reason: DisconnectReason)
         fun onFailToConnect(error: Throwable)
         fun onJoinResponse(response: JoinResponse)
@@ -1341,7 +1342,7 @@ internal constructor(
     override fun onClose(reason: String, code: Int) {
         LKLog.i { "received close event: $reason, code: $code" }
         abortPendingPublishTracks()
-        listener?.onEngineConnectionLost()
+        listener?.onEngineConnectionLost("signal closed: (code=$code reason=$reason)")
     }
 
     override fun onRemoteMuteChanged(trackSid: String, muted: Boolean) {
@@ -1371,7 +1372,7 @@ internal constructor(
                 fullReconnectOnNext = false
                 coroutineScope.launch {
                     yield()
-                    reconnect()
+                    reconnect(reason = "server leave action=${leave.action.name} reason=${leave.reason.name}")
                 }
             }
 
@@ -1382,7 +1383,7 @@ internal constructor(
                 fullReconnectOnNext = true
                 coroutineScope.launch {
                     yield()
-                    reconnect()
+                    reconnect(reason = "server leave action=${leave.action.name} reason=${leave.reason.name}")
                 }
             }
 

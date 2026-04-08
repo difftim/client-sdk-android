@@ -409,7 +409,7 @@ class CallViewModel(
                         }
 
                         else -> {
-                            LKLog.e { "Room event: $it" }
+                            LKLog.i { "Room event: $it" }
                         }
                     }
                 }

@@ -823,6 +823,15 @@ constructor(
                 )
                 resumeJoinContinuation(transport.attemptId, Either.Left(response.join))
             } else if (response.hasLeave()) {
+                if (!isConnected) {
+                    failJoinContinuation(
+                        transport.attemptId,
+                        Exception(
+                            "signal reconnect interrupted by server leave: " +
+                                "${response.leave.action.name}/${response.leave.reason.name}",
+                        ),
+                    )
+                }
                 // Some reconnects may immediately send leave back without a join response first.
                 handleSignalResponseImpl(transport, response)
             } else if (isReconnecting) {
