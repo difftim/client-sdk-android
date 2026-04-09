@@ -364,6 +364,7 @@ constructor(
 
     @Volatile
     private var activeNetwork: Network? = null
+
     @Volatile
     private var pendingRestartNetwork: Network? = null
 

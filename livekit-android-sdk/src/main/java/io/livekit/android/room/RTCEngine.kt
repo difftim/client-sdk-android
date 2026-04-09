@@ -158,8 +158,10 @@ internal constructor(
     @Volatile
     internal var reconnectType: ReconnectType = ReconnectType.DEFAULT
     private var reconnectingJob: Job? = null
+
     @Volatile
     private var pendingNetworkHandle: Long = 0
+
     @Volatile
     private var restartContinuation: CancellableContinuation<Boolean>? = null
 
@@ -661,7 +663,7 @@ internal constructor(
                     startDelay = 0.milliseconds
                 }
 
-                LKLog.i { "[reconnect][signal][${retries + 1}] reconnecting to signal, delay=${startDelay}, reason=$reconnectReason" }
+                LKLog.i { "[reconnect][signal][${retries + 1}] reconnecting to signal, delay=$startDelay, reason=$reconnectReason" }
                 if (startDelay > 0.milliseconds) {
                     delay(startDelay)
                 }
