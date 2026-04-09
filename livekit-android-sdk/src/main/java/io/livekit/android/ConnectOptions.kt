@@ -75,6 +75,30 @@ data class ConnectOptions(
      * Only used when [useQuicSignal] is true.
      */
     val quicCidTag: String = "",
+
+    /**
+     * Self-signed root CA certificate in PEM format. When provided, TLS handshakes
+     * will verify the server certificate chain against this CA for both WebSocket
+     * and QUIC transports. When `null` or empty, the default system trust store is used.
+     *
+     * Example usage for IP direct connection with self-signed certificate:
+     * ```
+     * val options = ConnectOptions(
+     *     caCertPem = rootCaPemString,
+     *     serverHost = "real.domain.com",
+     * )
+     * room.connect("wss://1.2.3.4:443", token, options)
+     * ```
+     */
+    val caCertPem: String? = null,
+
+    /**
+     * Logical hostname for TLS SNI and certificate hostname verification.
+     * Required when connecting via IP address (IP direct) so that TLS can use
+     * the correct server name for SNI and validate the certificate SAN.
+     * When `null` or empty, the host from the connection URL is used.
+     */
+    val serverHost: String? = null,
 ) {
     internal var reconnect: Boolean = false
     internal var participantSid: String? = null
