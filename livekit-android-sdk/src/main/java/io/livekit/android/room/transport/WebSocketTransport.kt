@@ -18,7 +18,6 @@ package io.livekit.android.room.transport
 
 import io.livekit.android.ConnectOptions
 import io.livekit.android.util.LKLog
-import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -26,8 +25,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import java.io.ByteArrayInputStream
-import java.net.InetAddress
-import java.net.URI
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
 import javax.net.ssl.SSLContext
@@ -51,11 +48,10 @@ class WebSocketTransport(
     ) {
         this.listener = listener
 
-        var connectUrl = url
-        val client = configureClient(options, url) { connectUrl = it }
+        val client = configureClient(options)
 
         val requestBuilder = Request.Builder()
-            .url(connectUrl)
+            .url(url)
             .addHeader("Authorization", "Bearer $token")
 
         options.userAgent?.let {
@@ -69,29 +65,17 @@ class WebSocketTransport(
     }
 
     /**
-     * Builds an [OkHttpClient] configured for self-signed certificate verification
-     * and/or IP-direct connection when the corresponding options are set.
+     * Returns an [OkHttpClient] configured for self-signed certificate verification
+     * when [ConnectOptions.caCertPem] is provided.
      *
-     * When [ConnectOptions.caCertPem] is provided, a custom [X509TrustManager] is
-     * created that trusts only the given root CA.
-     *
-     * When [ConnectOptions.serverHost] is also provided (IP-direct scenario), the URL
-     * host is rewritten to the logical hostname so that TLS SNI and certificate SAN
-     * verification use the correct domain. A custom [Dns] resolver maps the logical
-     * hostname back to the original IP from the URL.
-     *
-     * If the PEM certificate is malformed or the URL cannot be parsed, falls back to
-     * the unmodified [okHttpClient] so that the connection can still attempt (and fail
-     * with a clear TLS error) rather than crashing.
+     * A custom [X509TrustManager] is built that trusts only the given root CA(s).
+     * If the PEM is malformed, falls back to the unmodified [okHttpClient] so that
+     * the connection can still attempt (and fail with a clear TLS error) rather
+     * than crashing.
      */
-    private fun configureClient(
-        options: ConnectOptions,
-        originalUrl: String,
-        onUrlResolved: (String) -> Unit,
-    ): OkHttpClient {
+    private fun configureClient(options: ConnectOptions): OkHttpClient {
         val caCertPem = options.caCertPem
         if (caCertPem.isNullOrEmpty()) {
-            onUrlResolved(originalUrl)
             return okHttpClient
         }
 
@@ -99,45 +83,15 @@ class WebSocketTransport(
             buildTrustManager(caCertPem)
         } catch (e: Exception) {
             LKLog.e(e) { "Failed to parse caCertPem, falling back to default trust store." }
-            onUrlResolved(originalUrl)
             return okHttpClient
         }
 
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, arrayOf(trustManager), null)
 
-        val builder = okHttpClient.newBuilder()
+        return okHttpClient.newBuilder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
-
-        val serverHost = options.serverHost
-        if (!serverHost.isNullOrEmpty()) {
-            try {
-                val uri = URI(originalUrl)
-                val originalHost = uri.host
-                val newUri = URI(uri.scheme, null, serverHost, uri.port, uri.rawPath, uri.rawQuery, null)
-                onUrlResolved(newUri.toString())
-                LKLog.d { "WebSocket IP-direct: rewriting host $originalHost -> $serverHost" }
-
-                builder.dns(
-                    object : Dns {
-                        override fun lookup(hostname: String): List<InetAddress> {
-                            return if (hostname == serverHost) {
-                                listOf(InetAddress.getByName(originalHost))
-                            } else {
-                                Dns.SYSTEM.lookup(hostname)
-                            }
-                        }
-                    },
-                )
-            } catch (e: Exception) {
-                LKLog.e(e) { "Failed to rewrite URL for IP-direct, using original URL." }
-                onUrlResolved(originalUrl)
-            }
-        } else {
-            onUrlResolved(originalUrl)
-        }
-
-        return builder.build()
+            .build()
     }
 
     /**

@@ -81,22 +81,37 @@ data class ConnectOptions(
      * will verify the server certificate chain against this CA for both WebSocket
      * and QUIC transports. When `null` or empty, the default system trust store is used.
      *
-     * Example usage for IP direct connection with self-signed certificate:
+     * - **WebSocket**: the URL must use a domain name (not IP); the custom CA is used
+     *   for certificate chain verification only.
+     * - **QUIC**: supports both domain and IP-direct connections. When using IP-direct,
+     *   set [serverHost] as well.
+     *
+     * Example:
      * ```
+     * // QUIC IP-direct + self-signed cert
      * val options = ConnectOptions(
+     *     useQuicSignal = true,
      *     caCertPem = rootCaPemString,
      *     serverHost = "real.domain.com",
      * )
      * room.connect("wss://1.2.3.4:443", token, options)
+     *
+     * // WebSocket domain + self-signed cert
+     * val options = ConnectOptions(
+     *     caCertPem = rootCaPemString,
+     * )
+     * room.connect("wss://real.domain.com:443", token, options)
      * ```
      */
     val caCertPem: String? = null,
 
     /**
-     * Logical hostname for TLS SNI and certificate hostname verification.
-     * Required when connecting via IP address (IP direct) so that TLS can use
-     * the correct server name for SNI and validate the certificate SAN.
+     * Logical hostname for TLS SNI and certificate hostname verification in
+     * QUIC IP-direct scenarios. Only used when [useQuicSignal] is true and the
+     * connection URL contains an IP address instead of a domain name.
      * When `null` or empty, the host from the connection URL is used.
+     *
+     * This parameter is ignored for WebSocket connections.
      */
     val serverHost: String? = null,
 ) {
