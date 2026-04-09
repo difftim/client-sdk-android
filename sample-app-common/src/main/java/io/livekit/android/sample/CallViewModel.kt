@@ -129,6 +129,8 @@ class CallViewModel(
     val quic: Boolean = false,
     val quicDeviceType: Int = 0,
     val quicCidTag: String = "",
+    val serverHost: String = "",
+    val caCertPem: String = "",
     val audioProcessorOptions: AudioProcessorOptions? = null,
     val stressTest: StressTest = StressTest.None,
 ) : AndroidViewModel(application) {
@@ -150,6 +152,8 @@ class CallViewModel(
                 useQuicSignal = quic,
                 quicDeviceType = quicDeviceType,
                 quicCidTag = quicCidTag,
+                serverHost = serverHost.ifEmpty { null },
+                caCertPem = caCertPem.ifEmpty { null },
             )
         }
         val param = Json.decodeFromString<MergeStartCallParam>(BuildConfig.MERGE_START_CALL_PARAM)
@@ -197,6 +201,8 @@ class CallViewModel(
             useQuicSignal = quic,
             quicDeviceType = quicDeviceType,
             quicCidTag = quicCidTag,
+            serverHost = serverHost.ifEmpty { null },
+            caCertPem = caCertPem.ifEmpty { null },
         )
     }
 

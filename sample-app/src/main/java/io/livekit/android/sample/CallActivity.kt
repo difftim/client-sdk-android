@@ -61,6 +61,8 @@ class CallActivity : AppCompatActivity() {
             quic = args.quicOn,
             quicDeviceType = args.quicDeviceType,
             quicCidTag = args.quicCidTag,
+            serverHost = args.serverHost,
+            caCertPem = args.caCertPem,
             stressTest = args.stressTest,
             application = application,
             audioProcessorOptions = AudioProcessorOptions(
@@ -337,6 +339,8 @@ class CallActivity : AppCompatActivity() {
         val quicOn: Boolean,
         val quicDeviceType: Int,
         val quicCidTag: String,
+        val serverHost: String = "",
+        val caCertPem: String = "",
         val stressTest: StressTest,
     ) : Parcelable
 }
