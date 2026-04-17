@@ -52,8 +52,9 @@ import io.livekit.android.room.track.LocalScreencastVideoTrack
 import io.livekit.android.room.track.LocalVideoTrack
 import io.livekit.android.room.track.LocalVideoTrackOptions
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.VideoCaptureParameter
 import io.livekit.android.room.track.VideoCodec
-import io.livekit.android.room.track.VideoEncoding
+import io.livekit.android.room.track.VideoPreset169
 import io.livekit.android.room.track.screencapture.ScreenCaptureParams
 import io.livekit.android.room.track.video.CameraCapturerUtils
 import io.livekit.android.sample.common.BuildConfig
@@ -221,11 +222,13 @@ class CallViewModel(
             videoTrackCaptureDefaults = LocalVideoTrackOptions(
                 deviceId = "",
                 position = CameraPosition.FRONT,
-                isPortrait = true,
+                captureParams = VideoCaptureParameter(1280, 720, 30),
+                isPortrait = true // Set portrait mode for vertical video capture orientation
             ),
             videoTrackPublishDefaults = VideoTrackPublishDefaults(
-                videoEncoding = VideoEncoding(3_000_000, 30),
-                videoCodec = VideoCodec.VP8.codecName,
+                videoEncoding = VideoPreset169.H1080.encoding,
+                videoCodec = VideoCodec.VP9.codecName,
+                scalabilityMode = "L3T3"
             ),
         )
     }
