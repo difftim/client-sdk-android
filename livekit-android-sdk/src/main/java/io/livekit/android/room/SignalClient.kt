@@ -115,6 +115,7 @@ constructor(
             Either<ReconnectResponse, Unit>,
             >,
         >? = null
+
     @Volatile
     private var joinContinuationAttemptId: Long = 0
     private val joinContinuationLock = Any()

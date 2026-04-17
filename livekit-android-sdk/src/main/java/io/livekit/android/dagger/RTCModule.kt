@@ -37,6 +37,7 @@ import io.livekit.android.e2ee.DataPacketCryptorManager
 import io.livekit.android.e2ee.DataPacketCryptorManagerImpl
 import io.livekit.android.memory.CloseableManager
 import io.livekit.android.room.transport.QuicTransport
+import io.livekit.android.room.transport.QuicWithFallbackTransport
 import io.livekit.android.room.transport.SignalTransport
 import io.livekit.android.room.transport.WebSocketTransport
 import io.livekit.android.util.LKLog
@@ -220,7 +221,8 @@ internal object RTCModule {
     ): SignalTransport.Factory {
         return SignalTransport.Factory { options, attemptId, sendOnOpen ->
             if (options.useQuicSignal) {
-                QuicTransport(attemptId, sendOnOpen, ttsignalConnector)
+                val quic = QuicTransport(attemptId, sendOnOpen, ttsignalConnector)
+                QuicWithFallbackTransport(quic, okHttpClient)
             } else {
                 WebSocketTransport(attemptId, sendOnOpen, okHttpClient)
             }
