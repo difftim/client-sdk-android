@@ -16,10 +16,11 @@
 
 package io.livekit.android.room.transport
 
+import android.net.Uri
 import io.livekit.android.ConnectOptions
 import io.livekit.android.util.LKLog
+import okhttp3.OkHttpClient
 import okhttp3.Response
-import okhttp3.WebSocket
 import okio.ByteString
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -39,7 +40,7 @@ import java.util.concurrent.RejectedExecutionException
  */
 class QuicWithFallbackTransport(
     private val quicTransport: QuicTransport,
-    private val websocketFactory: WebSocket.Factory,
+    private val okHttpClient: OkHttpClient,
 ) : SignalTransport {
 
     override val attemptId: Long get() = quicTransport.attemptId
@@ -122,9 +123,81 @@ class QuicWithFallbackTransport(
             quicTransport.cancel()
         } catch (_: Exception) {
         }
-        val ws = WebSocketTransport(attemptId, sendOnOpen, websocketFactory)
+        val ws = WebSocketTransport(attemptId, sendOnOpen, okHttpClient)
         active = ws
-        ws.connect(connectUrl!!, connectToken!!, connectOptions!!, innerListener)
+        val originalUrl = connectUrl!!
+        val fallbackUrl = rewriteIpUrlForWebSocket(originalUrl, connectOptions!!)
+        ws.connect(fallbackUrl, connectToken!!, connectOptions!!, innerListener)
+    }
+
+    /**
+     * When QUIC is using self-signed cert verification with a direct-IP URL,
+     * WebSocket's TLS handshake cannot validate the IP host against the
+     * server certificate (which is issued for the domain). In that case,
+     * rewrite the URL's host from the IP to the real [ConnectOptions.serverHost]
+     * domain so the WebSocket fallback can succeed.
+     *
+     * No-ops (returns [url] unchanged) when:
+     * - [ConnectOptions.caCertPem] is null (not using self-signed cert flow), or
+     * - [ConnectOptions.serverHost] is null/blank, or
+     * - the URL host is not an IP literal (already a domain).
+     */
+    private fun rewriteIpUrlForWebSocket(url: String, options: ConnectOptions): String {
+        val caCertPem = options.caCertPem
+        val serverHost = options.serverHost
+        if (caCertPem.isNullOrEmpty() || serverHost.isNullOrBlank()) {
+            return url
+        }
+        val uri = try {
+            Uri.parse(url)
+        } catch (e: Exception) {
+            LKLog.w(e) { "[transport] fallback url parse failed, keeping original: $url" }
+            return url
+        }
+        val host = uri.host
+        if (host.isNullOrEmpty()) {
+            LKLog.w { "[transport] fallback url has no host, keeping original: $url" }
+            return url
+        }
+        if (!isIpLiteral(host)) {
+            LKLog.d { "[transport] fallback url host is not an IP ($host), no rewrite needed" }
+            return url
+        }
+        if (host.equals(serverHost, ignoreCase = true)) {
+            return url
+        }
+        val rewritten = replaceHost(url, uri, serverHost)
+        LKLog.i {
+            "[transport] rewrite fallback url host from IP=$host to serverHost=$serverHost " +
+                "(self-signed cert + direct IP)"
+        }
+        return rewritten
+    }
+
+    private fun replaceHost(originalUrl: String, uri: Uri, newHost: String): String {
+        val scheme = uri.scheme ?: return originalUrl
+        val port = uri.port
+        val authorityBuilder = StringBuilder()
+        uri.userInfo?.let { authorityBuilder.append(it).append('@') }
+        authorityBuilder.append(newHost)
+        if (port != -1) {
+            authorityBuilder.append(':').append(port)
+        }
+        val path = uri.encodedPath ?: ""
+        val query = uri.encodedQuery?.let { "?$it" } ?: ""
+        val fragment = uri.encodedFragment?.let { "#$it" } ?: ""
+        return "$scheme://$authorityBuilder$path$query$fragment"
+    }
+
+    private fun isIpLiteral(host: String): Boolean {
+        if (host.startsWith("[") && host.endsWith("]")) return true
+        if (IPV4_REGEX.matches(host)) return true
+        if (host.contains(':')) return true
+        return false
+    }
+
+    private companion object {
+        private val IPV4_REGEX = Regex("^(\\d{1,3})(\\.\\d{1,3}){3}$")
     }
 
     override fun connect(
