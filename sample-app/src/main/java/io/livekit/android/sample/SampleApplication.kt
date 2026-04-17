@@ -25,7 +25,7 @@ class SampleApplication : Application() {
         super.onCreate()
         LiveKit.init(this)
         LiveKit.loggingLevel = LoggingLevel.VERBOSE
-        // LiveKit.enableWebRTCLogging = true
-        // LiveKit.loggingLevelWebRTC = LoggingLevel.DEBUG
+        //  LiveKit.enableWebRTCLogging = true
+        //  LiveKit.loggingLevelWebRTC = LoggingLevel.DEBUG
     }
 }

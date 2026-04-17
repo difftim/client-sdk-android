@@ -18,4 +18,12 @@
     <string name="ns_off">NS Off</string>
     <string name="df_atten_lim">Atten Limit (dB)</string>
     <string name="df_post_filter">Post Filter Beta</string>
+    <string name="vc_open">VC Off</string>
+    <string name="vc_close">VC On</string>
+    <string name="vc_pitch">Pitch (semitones)</string>
+    <string name="vc_preset_loli">Loli\n+10</string>
+    <string name="vc_preset_goddess">Goddess\n+5</string>
+    <string name="vc_preset_original">Original\n0</string>
+    <string name="vc_preset_uncle">Uncle\n-7</string>
+    <string name="vc_preset_monster">Monster\n-12</string>
 </resources>

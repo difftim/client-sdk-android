@@ -82,7 +82,7 @@ class QuicTransport(
             cidTag = options.quicCidTag
             serverHost = options.serverHost ?: ""
             caCertPem = options.caCertPem ?: ""
-            alpn = "ttsignal"
+            alpn = if (options.caCertPem != null) "ttsignal-ip" else "ttsignal"
         }
 
         val connectionHandler = object : IConnectionHandler {
