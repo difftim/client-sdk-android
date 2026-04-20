@@ -101,10 +101,25 @@ constructor(
 
     // Correlate callbacks with the active connection attempt to avoid races
     private var currentAttemptId: Long = 0
+
+    @Volatile
+    private var activeAttemptId: Long = 0
+
     private var connectStartTime: Long = 0
     private fun isActiveTransport(transport: SignalTransport): Boolean {
-        // Each transport is tied to a specific attemptId, so no need to manage a map.
-        return transport == this.transport && transport.attemptId == this.transport?.attemptId
+        val currentTransport = this.transport
+        return transport == currentTransport && transport.attemptId == activeAttemptId
+    }
+
+    private fun invalidateAttempt(attemptId: Long) {
+        if (activeAttemptId == attemptId) {
+            activeAttemptId = 0
+        }
+
+        val currentTransport = transport
+        if (currentTransport?.attemptId == attemptId) {
+            transport = null
+        }
     }
 
     // join will always return a JoinResponse.
@@ -202,6 +217,7 @@ constructor(
         // Increment attempt id to mark this connection try
         currentAttemptId += 1
         val attemptId = currentAttemptId
+        activeAttemptId = attemptId
 
         val sendOnOpen = if (options.ttCallRequest != null && token.isEmpty()) {
             options.ttCallRequest.let { req ->
@@ -246,7 +262,8 @@ constructor(
 
                     it.invokeOnCancellation {
                         LKLog.i { "[reconnect][signal] the coroutine is cancelled or times out" }
-                        newTransport?.cancel()
+                        invalidateAttempt(attemptId)
+                        newTransport.cancel()
                         clearJoinContinuation(attemptId)
                     }
 
@@ -261,9 +278,19 @@ constructor(
             if (localTransport != null && localTransport.attemptId == attemptId && isActiveTransport(localTransport)) {
                 LKLog.i { "[reconnect][signal] connect - out timeout exception, attempt=$attemptId, close transport=$localTransport" }
                 // Immediately close
+                invalidateAttempt(attemptId)
                 localTransport.cancel()
+            } else {
+                invalidateAttempt(attemptId)
             }
-            throw t
+            // Wrap kotlinx coroutine internal exception into a RoomException so callers
+            // can handle it as a regular SDK exception without depending on coroutine internals,
+            // and so it does not propagate as a CancellationException to the calling scope.
+            throw RoomException.ConnectTimeoutException(
+                message = "Timed out connecting to signal server after $timeMillis ms",
+                cause = t,
+                timeoutMs = timeMillis,
+            )
         }
     }
 
@@ -1054,6 +1081,7 @@ constructor(
         LKLog.i { "Closing SignalClient: code = $code, reason = $reason" }
         isConnected = false
         isReconnecting = false
+        activeAttemptId = 0
         if (::coroutineScope.isInitialized) {
             coroutineScope.close()
         }

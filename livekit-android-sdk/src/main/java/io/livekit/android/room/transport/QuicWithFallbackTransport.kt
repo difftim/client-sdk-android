@@ -51,13 +51,25 @@ class QuicWithFallbackTransport(
             Thread(r, "QuicFallback-Callback-${quicTransport.attemptId}").apply { isDaemon = true }
         }
 
+    @Volatile
     private var active: SignalTransport = quicTransport
+
+    @Volatile
     private var hasOpened = false
+
+    @Volatile
     private var hasFallenBack = false
 
+    @Volatile
     private var connectUrl: String? = null
+
+    @Volatile
     private var connectToken: String? = null
+
+    @Volatile
     private var connectOptions: ConnectOptions? = null
+
+    @Volatile
     private var outerListener: SignalTransport.Listener? = null
 
     /**
@@ -154,10 +166,13 @@ class QuicWithFallbackTransport(
      * for log correlation. "QUIC" or "WS" for the two known transports; otherwise
      * the class's simple name.
      */
-    private fun sourceOf(transport: SignalTransport): String = when (transport) {
-        quicTransport -> "QUIC"
-        active -> if (active is WebSocketTransport) "WS" else active.javaClass.simpleName
-        else -> transport.javaClass.simpleName
+    private fun sourceOf(transport: SignalTransport): String {
+        val activeTransport = active
+        return when (transport) {
+            quicTransport -> "QUIC"
+            activeTransport -> if (activeTransport is WebSocketTransport) "WS" else activeTransport.javaClass.simpleName
+            else -> transport.javaClass.simpleName
+        }
     }
 
     /**
@@ -313,6 +328,7 @@ class QuicWithFallbackTransport(
     }
 
     override fun toString(): String {
-        return "${javaClass.simpleName}@${Integer.toHexString(hashCode())}(attemptId=$attemptId, active=${active.javaClass.simpleName})"
+        val activeTransport = active
+        return "${javaClass.simpleName}@${Integer.toHexString(hashCode())}(attemptId=$attemptId, active=${activeTransport.javaClass.simpleName})"
     }
 }
