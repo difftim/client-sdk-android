@@ -80,8 +80,9 @@ class QuicTransport(
             pingOn = true
             deviceType = options.quicDeviceType
             cidTag = options.quicCidTag
-            // alpn = "h3" //for webtransport
-            alpn = "ttsignal" // for raw quic
+            serverHost = options.serverHost ?: ""
+            caCertPem = options.caCertPem ?: ""
+            alpn = if (options.caCertPem != null) "ttsignal-ip" else "ttsignal"
         }
 
         val connectionHandler = object : IConnectionHandler {

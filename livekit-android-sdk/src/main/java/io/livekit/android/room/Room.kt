@@ -1760,6 +1760,18 @@ sealed class RoomException(message: String? = null, cause: Throwable? = null) :
 
     class StartCallException(message: String? = null, cause: Throwable? = null, val statusCode: Int? = null) :
         RoomException(message, cause)
+
+    /**
+     * Thrown when establishing the signal connection times out.
+     *
+     * Wraps the underlying [kotlinx.coroutines.TimeoutCancellationException] so callers
+     * can catch it as a regular [RoomException] without depending on coroutine internals.
+     */
+    class ConnectTimeoutException(
+        message: String? = null,
+        cause: Throwable? = null,
+        val timeoutMs: Long? = null,
+    ) : RoomException(message, cause)
 }
 
 internal fun unpackStreamId(packed: String): Pair<String, String?> {

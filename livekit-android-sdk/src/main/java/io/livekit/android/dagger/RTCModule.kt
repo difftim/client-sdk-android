@@ -191,7 +191,7 @@ internal object RTCModule {
         config.taskThreads = 1
         config.timerThreads = 1
         config.idleTimeOut = 20000
-        config.alpn = "ttsignal"
+        config.alpn = "ttsignal,ttsignal-ip"
         config.hostname = "localhost"
         config.port = 443
         config.maxConnections = 1000

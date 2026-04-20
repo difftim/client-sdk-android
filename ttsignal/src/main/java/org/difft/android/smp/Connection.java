@@ -41,6 +41,10 @@ public class Connection {
 
         public void onStreamClosed(Connection conn, int streamId);
 
+        public void onStreamDataAcked(Connection conn, int streamId, long ackDelayTime, int ackedBytes, int inflightBytes);
+
+        public void onStreamDataSent(Connection conn, int streamId, int transId, int size);
+
         public void onRecvCmd(Connection conn, long timestamp, int transId, int streamId, byte[] data);
 
         public void onRecvData(Connection conn, long timestamp, int transId, int streamId, byte[] data);
@@ -78,6 +82,25 @@ public class Connection {
                 Stream stream = streams.remove(streamId);
                 if (stream != null) {
                     handler.onStreamClosed(conn, stream);
+                }
+            }
+
+
+            @Override
+            public void onStreamDataAcked(Connection conn, int streamId, long ackDelayTime, int ackedBytes, int inflightBytes) {
+                // 流包确认时的处理逻辑
+                Stream stream = streams.get(streamId);
+                if (stream != null) {
+                    handler.onStreamDataAcked(conn, stream, ackDelayTime, ackedBytes, inflightBytes);
+                }
+            }
+
+            @Override
+            public void onStreamDataSent(Connection conn, int streamId, int transId, int size) {
+                // 流数据发送时的处理逻辑
+                Stream stream = streams.get(streamId);
+                if (stream != null) {
+                    handler.onStreamDataSent(conn, stream, transId, size);
                 }
             }
 
