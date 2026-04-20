@@ -98,9 +98,9 @@ class QuicWithFallbackTransport(
                 return@postCallback
             }
             if (outerListener == null) {
-                LKLog.w(t) { "[transport] onFailure dropped: outerListener=null (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack)" }
+                LKLog.w { "[transport] onFailure dropped: outerListener=null (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack)" }
             } else {
-                LKLog.i(t) { "[transport] onFailure -> outerListener (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack, response=$response)" }
+                LKLog.i { "[transport] onFailure -> outerListener (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack, response=$response)" }
                 outerListener?.onFailure(this@QuicWithFallbackTransport, t, response)
             }
         }

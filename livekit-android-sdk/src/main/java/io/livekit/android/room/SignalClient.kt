@@ -60,6 +60,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import java.net.UnknownHostException
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Named
@@ -451,7 +452,7 @@ constructor(
         }
         var exceptionError: Exception? = lastConnectionException.also { lastConnectionException = null }
         try {
-            if (exceptionError == null) {
+            if (exceptionError == null && !t.hasUnknownHostCause()) {
                 lastUrl?.let {
                     val validationUrl = it.toHttpUrl().replaceFirst("/rtc?", "/rtc/validate?")
                     val request = Request.Builder()
@@ -474,6 +475,8 @@ constructor(
                         }
                     }
                 }
+            } else if (exceptionError == null) {
+                LKLog.i { "[reconnect][signal] skipping connection validation for UnknownHostException" }
             }
         } catch (e: Throwable) {
             LKLog.e { "failed to validate connection" }
@@ -514,6 +517,17 @@ constructor(
         }
         LKLog.i { "[reconnect][quic] transport restarted, result=$result, address=$address" }
         listener?.onTransportRestarted(result, address)
+    }
+
+    private fun Throwable.hasUnknownHostCause(): Boolean {
+        var current: Throwable? = this
+        while (current != null) {
+            if (current is UnknownHostException) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     private fun handleWebSocketClose(transport: SignalTransport, reason: String, code: Int) {

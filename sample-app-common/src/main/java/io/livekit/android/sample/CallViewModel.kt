@@ -509,7 +509,7 @@ class CallViewModel(
             // Update the speaker
             handlePrimarySpeaker(emptyList(), emptyList(), room)
         } catch (e: Throwable) {
-            LKLog.e(e) { "Failed to connect to room" }
+            LKLog.e { "Failed to connect to room, error=$e.message" }
             mutableError.value = e
             mutableConnectionStatus.value = "Failed to connect"
         }
