@@ -69,15 +69,27 @@ class QuicWithFallbackTransport(
     private val innerListener = object : SignalTransport.Listener {
         override fun onOpen(transport: SignalTransport) = postCallback {
             hasOpened = true
-            outerListener?.onOpen(this@QuicWithFallbackTransport)
+            val source = sourceOf(transport)
+            if (outerListener == null) {
+                LKLog.w { "[transport] onOpen dropped: outerListener=null (source=$source)" }
+            } else {
+                LKLog.i { "[transport] onOpen -> outerListener (source=$source)" }
+                outerListener?.onOpen(this@QuicWithFallbackTransport)
+            }
         }
 
         override fun onMessage(transport: SignalTransport, message: ByteString) = postCallback {
-            outerListener?.onMessage(this@QuicWithFallbackTransport, message)
+            if (outerListener == null) {
+                LKLog.w { "[transport] onMessage dropped: outerListener=null (source=${sourceOf(transport)}, bytes=${message.size})" }
+            } else {
+                outerListener?.onMessage(this@QuicWithFallbackTransport, message)
+            }
         }
 
         override fun onFailure(transport: SignalTransport, t: Throwable, response: Response?) = postCallback {
+            val source = sourceOf(transport)
             if (!hasOpened && !hasFallenBack && transport === quicTransport) {
+                LKLog.i { "[transport] onFailure -> triggering fallback (source=$source, cause=${t.message})" }
                 fallbackToWebSocket(t)
                 return@postCallback
             }
@@ -85,11 +97,18 @@ class QuicWithFallbackTransport(
                 LKLog.d { "[transport] ignoring stale QUIC onFailure after fallback: ${t.message}" }
                 return@postCallback
             }
-            outerListener?.onFailure(this@QuicWithFallbackTransport, t, response)
+            if (outerListener == null) {
+                LKLog.w(t) { "[transport] onFailure dropped: outerListener=null (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack)" }
+            } else {
+                LKLog.i(t) { "[transport] onFailure -> outerListener (source=$source, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack, response=$response)" }
+                outerListener?.onFailure(this@QuicWithFallbackTransport, t, response)
+            }
         }
 
         override fun onClosed(transport: SignalTransport, code: Int, reason: String) = postCallback {
+            val source = sourceOf(transport)
             if (!hasOpened && !hasFallenBack && transport === quicTransport) {
+                LKLog.i { "[transport] onClosed -> triggering fallback (source=$source, reason=$reason)" }
                 fallbackToWebSocket(TtsignalException("QUIC closed before open: $reason"))
                 return@postCallback
             }
@@ -97,37 +116,92 @@ class QuicWithFallbackTransport(
                 LKLog.d { "[transport] ignoring stale QUIC onClosed after fallback: $reason" }
                 return@postCallback
             }
-            outerListener?.onClosed(this@QuicWithFallbackTransport, code, reason)
+            if (outerListener == null) {
+                LKLog.w { "[transport] onClosed dropped: outerListener=null (source=$source, code=$code, reason=$reason)" }
+            } else {
+                LKLog.i { "[transport] onClosed -> outerListener (source=$source, code=$code, reason=$reason, hasOpened=$hasOpened, hasFallenBack=$hasFallenBack)" }
+                outerListener?.onClosed(this@QuicWithFallbackTransport, code, reason)
+            }
         }
 
         override fun onClosing(transport: SignalTransport, code: Int, reason: String) = postCallback {
+            val source = sourceOf(transport)
             if (transport === quicTransport && hasFallenBack) {
+                LKLog.d { "[transport] ignoring stale QUIC onClosing after fallback: $reason" }
                 return@postCallback
             }
-            outerListener?.onClosing(this@QuicWithFallbackTransport, code, reason)
+            if (outerListener == null) {
+                LKLog.w { "[transport] onClosing dropped: outerListener=null (source=$source, code=$code, reason=$reason)" }
+            } else {
+                LKLog.i { "[transport] onClosing -> outerListener (source=$source, code=$code, reason=$reason)" }
+                outerListener?.onClosing(this@QuicWithFallbackTransport, code, reason)
+            }
         }
 
         override fun onRestarted(transport: SignalTransport, result: Int, address: String?) = postCallback {
-            outerListener?.onRestarted(this@QuicWithFallbackTransport, result, address)
+            val source = sourceOf(transport)
+            if (outerListener == null) {
+                LKLog.w { "[transport] onRestarted dropped: outerListener=null (source=$source, result=$result, address=$address)" }
+            } else {
+                LKLog.i { "[transport] onRestarted -> outerListener (source=$source, result=$result, address=$address)" }
+                outerListener?.onRestarted(this@QuicWithFallbackTransport, result, address)
+            }
         }
     }
 
     /**
+     * Returns a short label identifying which inner transport fired the callback,
+     * for log correlation. "QUIC" or "WS" for the two known transports; otherwise
+     * the class's simple name.
+     */
+    private fun sourceOf(transport: SignalTransport): String = when (transport) {
+        quicTransport -> "QUIC"
+        active -> if (active is WebSocketTransport) "WS" else active.javaClass.simpleName
+        else -> transport.javaClass.simpleName
+    }
+
+    /**
      * Called on [callbackExecutor]. Creates a [WebSocketTransport] and
-     * connects it with the same arguments, replacing the active transport.
+     * schedules its connect on a subsequent callback-executor turn so that
+     * any pending QUIC teardown callbacks (e.g. the "local close" onClosed
+     * that XQUIC fires ~1-3 s after [QuicTransport.cancel]) can be drained
+     * first and correctly dropped as stale. This keeps the callback queue
+     * ordering clean and avoids interleaving WebSocket open/failure with
+     * leftover QUIC signals.
+     *
+     * If [WebSocketTransport.connect] throws synchronously (malformed URL,
+     * TLS/PEM parse failure, OkHttp internal errors, etc.), the exception
+     * is surfaced to [outerListener] via [SignalTransport.Listener.onFailure]
+     * on the same callback thread so downstream code (SignalClient) can fail
+     * the join continuation promptly instead of hanging.
      */
     private fun fallbackToWebSocket(cause: Throwable) {
         hasFallenBack = true
         LKLog.w { "[transport] QUIC failed before open: ${cause.message}, falling back to WebSocket" }
         try {
             quicTransport.cancel()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LKLog.w(e) { "[transport] quicTransport.cancel() threw while falling back" }
         }
         val ws = WebSocketTransport(attemptId, sendOnOpen, okHttpClient)
         active = ws
-        val originalUrl = connectUrl!!
-        val fallbackUrl = rewriteIpUrlForWebSocket(originalUrl, connectOptions!!)
-        ws.connect(fallbackUrl, connectToken!!, connectOptions!!, innerListener)
+        val fallbackUrl = rewriteIpUrlForWebSocket(connectUrl!!, connectOptions!!)
+        val token = connectToken!!
+        val options = connectOptions!!
+        postCallback {
+            try {
+                LKLog.i { "[transport] starting WebSocket fallback connect url=$fallbackUrl" }
+                ws.connect(fallbackUrl, token, options, innerListener)
+            } catch (t: Throwable) {
+                LKLog.e(t) { "[transport] WebSocket fallback connect threw synchronously" }
+                try {
+                    ws.cancel()
+                } catch (e: Exception) {
+                    LKLog.w(e) { "[transport] ws.cancel() threw after failed connect" }
+                }
+                outerListener?.onFailure(this@QuicWithFallbackTransport, t, null)
+            }
+        }
     }
 
     /**
